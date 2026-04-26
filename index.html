@@ -438,6 +438,8 @@ hr { border: none; border-top: 1px solid #E5DDC8; margin: 12px 0; }
 const STORAGE_KEY = 'at_students_v1';
 const SETTINGS_KEY = 'at_manager_settings_v1';
 const COMPLETED_TASKS_KEY = 'at_manager_completed_tasks_v1';
+const DIRTY_IDS_KEY = 'at_manager_dirty_student_ids_v1';
+const LAST_LOCAL_SAVE_KEY = 'at_manager_last_local_save_v1';
 let students = [];
 let currentView = 'tasks';
 let currentFilter = 'all';
@@ -677,6 +679,66 @@ let isSyncing = false;
 let lastSyncTime = null;
 
 // === Storage ===
+
+function normalizeStudentRecord(s) {
+  return {
+    id: String(s.id || ''),
+    name: String(s.name || ''),
+    uid: String(s.uid || ''),
+    phone: String(s.phone || ''),
+    loginType: String(s.loginType || ''),
+    lineId: String(s.lineId || ''),
+    need: String(s.need || ''),
+    teacherName: String(s.teacherName || ''),
+    teacherUrl: String(s.teacherUrl || ''),
+    classTime: String(s.classTime || ''),
+    status: String(s.status || 'new'),
+    createdAt: String(s.createdAt || ''),
+    updatedAt: String(s.updatedAt || '')
+  };
+}
+
+function getDirtyIds() {
+  try { return new Set(JSON.parse(localStorage.getItem(DIRTY_IDS_KEY) || '[]')); }
+  catch (e) { return new Set(); }
+}
+function setDirtyIds(ids) {
+  localStorage.setItem(DIRTY_IDS_KEY, JSON.stringify([...ids]));
+}
+function getDeletedIds() {
+  try { return new Set(JSON.parse(localStorage.getItem(DELETED_IDS_KEY) || '[]')); }
+  catch (e) { return new Set(); }
+}
+function setDeletedIds(ids) {
+  localStorage.setItem(DELETED_IDS_KEY, JSON.stringify([...ids]));
+}
+function markStudentDeleted(id) {
+  if (!id) return;
+  const ids = getDeletedIds();
+  ids.add(id);
+  setDeletedIds(ids);
+  localStorage.setItem(LAST_LOCAL_SAVE_KEY, String(Date.now()));
+}
+function markStudentDirty(id) {
+  if (!id) return;
+  const ids = getDirtyIds();
+  ids.add(id);
+  setDirtyIds(ids);
+  localStorage.setItem(LAST_LOCAL_SAVE_KEY, String(Date.now()));
+}
+function clearStudentDirty(id) {
+  const ids = getDirtyIds();
+  ids.delete(id);
+  setDirtyIds(ids);
+}
+function hasRecentLocalSave() {
+  const t = Number(localStorage.getItem(LAST_LOCAL_SAVE_KEY) || 0);
+  return t && (Date.now() - t < 5 * 60 * 1000);
+}
+function saveLocalStudents() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(students));
+}
+
 async function load() {
   applyAppSettings();
   populateSettingsForm();
@@ -694,34 +756,55 @@ async function load() {
 
 async function syncFromCloud() {
   const apiUrl = getSheetsApiUrl();
-  if (!apiUrl || isSyncing) { updateSyncStatus('未設定同步'); return; }
+  if (!apiUrl) { updateSyncStatus('未設定同步'); return; }
+  if (isSyncing) return;
+
   isSyncing = true;
   updateSyncStatus('同步中...');
   
   try {
-    const res = await fetch(apiUrl + '?action=list');
+    const localBefore = Array.isArray(students) ? students.map(normalizeStudentRecord).filter(s => s.id) : [];
+    const localMap = new Map(localBefore.map(s => [s.id, s]));
+    const dirtyIds = getDirtyIds();
+
+    const res = await fetch(apiUrl + '?action=list&ts=' + Date.now());
     const data = await res.json();
     if (data.students) {
-      // Convert cloud data: ensure all fields are strings/proper types
-      students = data.students.map(s => ({
-        id: String(s.id || ''),
-        name: String(s.name || ''),
-        uid: String(s.uid || ''),
-        phone: String(s.phone || ''),
-        loginType: String(s.loginType || ''),
-        lineId: String(s.lineId || ''),
-        need: String(s.need || ''),
-        teacherName: String(s.teacherName || ''),
-        teacherUrl: String(s.teacherUrl || ''),
-        classTime: String(s.classTime || ''),
-        status: String(s.status || 'new'),
-        createdAt: String(s.createdAt || '')
-      })).filter(s => s.id); // remove empty rows
-      
-      // Update local cache
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(students));
+      const deletedIds = getDeletedIds();
+      const cloudStudents = data.students.map(normalizeStudentRecord).filter(s => s.id && !deletedIds.has(s.id));
+      const cloudMap = new Map(cloudStudents.map(s => [s.id, s]));
+
+      // Merge rule: cloud can update existing records, but it must never erase local-only records.
+      // This fixes the case where a new lead appears locally, then disappears after copy/refresh because cloud is delayed.
+      let merged = cloudStudents.map(cloud => {
+        if (dirtyIds.has(cloud.id) && localMap.has(cloud.id)) return localMap.get(cloud.id);
+        return cloud;
+      });
+
+      // Always preserve local records that are not yet visible in cloud, unless the user explicitly deleted them.
+      localBefore.forEach(local => {
+        if (!cloudMap.has(local.id) && !deletedIds.has(local.id)) {
+          merged.push(local);
+        }
+      });
+
+      // De-duplicate by id.
+      const mergedMap = new Map();
+      merged.forEach(s => mergedMap.set(s.id, s));
+      students = [...mergedMap.values()];
+
+      // Clear dirty flag only when cloud already contains that record id.
+      dirtyIds.forEach(id => { if (cloudMap.has(id)) clearStudentDirty(id); });
+
+      saveLocalStudents();
       lastSyncTime = new Date();
-      updateSyncStatus('已同步 ' + lastSyncTime.toLocaleTimeString('zh-TW', {hour:'2-digit', minute:'2-digit'}));
+
+      if (getDirtyIds().size > 0 || students.length !== cloudStudents.length) {
+        updateSyncStatus('本機已保存，雲端同步中...');
+        setTimeout(() => pushToCloud(), 800);
+      } else {
+        updateSyncStatus('已同步 ' + lastSyncTime.toLocaleTimeString('zh-TW', {hour:'2-digit', minute:'2-digit'}));
+      }
       render();
     }
   } catch (e) {
@@ -732,31 +815,37 @@ async function syncFromCloud() {
   }
 }
 
-async function save() {
-  // Save to local first (instant)
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(students));
-  
-  // Sync to cloud
+async function pushToCloud() {
   const apiUrl = getSheetsApiUrl();
   if (!apiUrl) { updateSyncStatus('未設定同步'); return; }
+  if (isSyncing) return;
+
   isSyncing = true;
   updateSyncStatus('儲存中...');
-  
   try {
-    const res = await fetch(apiUrl, {
+    await fetch(apiUrl, {
       method: 'POST',
-      mode: 'no-cors', // Apps Script requires no-cors for POST
+      mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ action: 'save', students: students })
     });
     lastSyncTime = new Date();
-    updateSyncStatus('已儲存 ' + lastSyncTime.toLocaleTimeString('zh-TW', {hour:'2-digit', minute:'2-digit'}));
+    updateSyncStatus('已送出儲存 ' + lastSyncTime.toLocaleTimeString('zh-TW', {hour:'2-digit', minute:'2-digit'}));
+    // Apps Script / Google Sheet may take a moment to reflect the write. Verify later, do not overwrite immediately.
+    setTimeout(() => { if (!document.hidden) syncFromCloud(); }, 8000);
   } catch (e) {
     console.error('Save failed:', e);
-    updateSyncStatus('儲存失敗（本地已保存）');
+    updateSyncStatus('儲存失敗（本機已保存）');
   } finally {
     isSyncing = false;
   }
+}
+
+async function save() {
+  // Save to local first (instant). This prevents refresh from losing a newly added lead.
+  saveLocalStudents();
+  localStorage.setItem(LAST_LOCAL_SAVE_KEY, String(Date.now()));
+  await pushToCloud();
 }
 
 function updateSyncStatus(msg) {
@@ -1103,7 +1192,26 @@ function renderTemplates() {
 }
 
 function copyText(text) {
-  navigator.clipboard.writeText(text).then(() => showToast('已複製到剪貼簿'));
+  // Copy should never trigger a data refresh that makes newly added leads disappear.
+  saveLocalStudents();
+  const done = () => showToast('已複製到剪貼簿');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopyText(text, done));
+  } else {
+    fallbackCopyText(text, done);
+  }
+}
+function fallbackCopyText(text, callback) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.left = '-9999px';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  try { document.execCommand('copy'); } catch (e) {}
+  document.body.removeChild(ta);
+  if (callback) callback();
 }
 
 function copyTemplate(studentId, type) {
@@ -1365,16 +1473,21 @@ function saveStudent() {
     status: document.getElementById('fStatus').value
   };
 
+  const nowIso = new Date().toISOString();
+  let savedId = editingId;
   if (editingId) {
     const idx = students.findIndex(x => x.id === editingId);
-    students[idx] = { ...students[idx], ...data };
+    if (idx >= 0) students[idx] = { ...students[idx], ...data, updatedAt: nowIso };
   } else {
-    students.push({ id: uid(), createdAt: new Date().toISOString(), ...data });
+    savedId = uid();
+    students.push({ id: savedId, createdAt: nowIso, updatedAt: nowIso, ...data });
   }
-  save();
+  markStudentDirty(savedId);
+  saveLocalStudents();
   closeModal();
   render();
-  showToast(editingId ? '已更新' : '已新增');
+  showToast(editingId ? '已更新，本機已保存' : '已新增，本機已保存');
+  save();
 }
 
 function editStudent(id) { openModal(id); }
@@ -1383,6 +1496,8 @@ function deleteStudent(id) {
   if (!s) return;
   if (confirm(`確定刪除 ${s.name}？`)) {
     students = students.filter(x => x.id !== id);
+    markStudentDeleted(id);
+    saveLocalStudents();
     save();
     render();
     showToast('已刪除');
@@ -1482,6 +1597,21 @@ let pomoState = 'idle'; // idle / working / resting / paused
 let pomoRemaining = pomoConfig.work;
 let pomoInterval = null;
 let pomoCount = parseInt(localStorage.getItem('pomo_count_' + new Date().toDateString()) || '0', 10);
+let pomoAudioCtx = null;
+function unlockPomoAudio() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    if (!pomoAudioCtx) pomoAudioCtx = new Ctx();
+    if (pomoAudioCtx.state === 'suspended') pomoAudioCtx.resume();
+    const osc = pomoAudioCtx.createOscillator();
+    const gain = pomoAudioCtx.createGain();
+    osc.connect(gain); gain.connect(pomoAudioCtx.destination);
+    gain.gain.setValueAtTime(0.0001, pomoAudioCtx.currentTime);
+    osc.start(); osc.stop(pomoAudioCtx.currentTime + 0.03);
+  } catch(e) {}
+}
+
 const CAT_IMAGES = { idle: 'cat_idle.png', working: 'cat_working.png', resting: 'cat_resting.png', paused: 'cat_idle.png' };
 
 function pomoReadConfig() {
@@ -1534,6 +1664,8 @@ function pomoToggle() {
 }
 
 function pomoStart() {
+  pomoRequestPermission();
+  unlockPomoAudio();
   if (pomoState === 'idle') {
     pomoState = 'working';
     document.getElementById('pomoStatus').textContent = '工作中';
@@ -1583,7 +1715,7 @@ function pomoComplete() {
       const isWork = pomoState === 'working';
       new Notification(isWork ? '🎉 完成一個番茄鐘！' : '☕ 休息結束', {
         body: isWork ? '休息一下吧～' : '回去工作！加油！',
-        icon: '🍅'
+        icon: 'icon.png'
       });
     }
   } catch (e) {}
@@ -1591,19 +1723,28 @@ function pomoComplete() {
   // Vibrate
   if ('vibrate' in navigator) navigator.vibrate([200, 100, 200]);
   
-  // Beep sound
+  // Beep sound + visible fallback. Mobile browsers require audio to be unlocked by a user tap; pomoStart() does that.
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.frequency.value = 800;
-    gain.gain.setValueAtTime(0.3, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.5);
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    const ctx = pomoAudioCtx || (Ctx ? new Ctx() : null);
+    if (ctx) {
+      if (ctx.state === 'suspended') ctx.resume();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.35, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.8);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.8);
+    }
   } catch (e) {}
+  const isWorkDoneForAlert = pomoState === 'working';
+  showToast(isWorkDoneForAlert ? '番茄鐘完成，休息一下' : '休息結束，回到工作');
+  setTimeout(() => {
+    try { alert(isWorkDoneForAlert ? '番茄鐘完成，休息一下～' : '休息結束，回到工作囉'); } catch(e) {}
+  }, 150);
   
   if (pomoState === 'working') {
     // Work done -> rest

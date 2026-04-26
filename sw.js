@@ -1,4 +1,4 @@
-const CACHE_NAME = 'at-manager-hana-v-logdeadline1';
+const CACHE_NAME = 'at-manager-hana-v-copy-pomo-fix1';
 const APP_SHELL = [
   './',
   './index.html',
