@@ -13,7 +13,7 @@
 <title>AT 學員管理 | Hana</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-body { font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", sans-serif; background: #F4F1EB; color: #2C2C2C; padding: 16px; padding-bottom: 100px; max-width: 720px; margin: 0 auto; min-height: 100vh; }
+body { font-size: var(--app-font-size, 16px); font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", sans-serif; background: #F4F1EB; color: #2C2C2C; padding: 16px; padding-bottom: 100px; max-width: 720px; margin: 0 auto; min-height: 100vh; }
 
 header { background: #424A5A; color: white; padding: 18px 20px; border-radius: 12px; margin-bottom: 16px; }
 header h1 { font-size: 18px; font-weight: 600; }
@@ -161,6 +161,23 @@ header, .tab.active, .filter-chip.active, .btn-primary, .fab-btn, .toast, .pomo-
 .task-card { border-left-color: var(--brand-color) !important; }
 .fab-btn { box-shadow: 0 4px 16px rgba(var(--brand-color-rgb),0.28) !important; }
 
+
+
+/* User font size controls */
+body, input, select, textarea, button { font-size: var(--app-font-size, 16px); }
+.tab { font-size: calc(var(--app-font-size, 16px) * 0.78) !important; }
+.stat-num { font-size: calc(var(--app-font-size, 16px) * 1.25) !important; }
+.stat-label { font-size: calc(var(--app-font-size, 16px) * 0.68) !important; }
+.card-name { font-size: calc(var(--app-font-size, 16px) * 0.98) !important; }
+.card-info, .card-need, .task-action, .pomo-stats, .settings-card .hint { font-size: calc(var(--app-font-size, 16px) * 0.82) !important; }
+.card-time, .task-time, .card-uid, .template-label { font-size: calc(var(--app-font-size, 16px) * 0.72) !important; }
+.btn, .filter-chip, .task-date-btn { font-size: calc(var(--app-font-size, 16px) * 0.78) !important; }
+.form-group label, .task-date-panel label, .pomo-status, .section-title { font-size: calc(var(--app-font-size, 16px) * 0.88) !important; }
+.template-item, .empty, .alert-bar { font-size: calc(var(--app-font-size, 16px) * 0.86) !important; }
+.font-slider-row { display:flex; align-items:center; gap:10px; }
+.font-slider-row input[type="range"] { flex:1; }
+.font-size-value { min-width:48px; text-align:right; font-size:13px; color:#555; }
+
 a { color: #4A86E8; }
 hr { border: none; border-top: 1px solid #E5DDC8; margin: 12px 0; }
 </style>
@@ -282,6 +299,13 @@ hr { border: none; border-top: 1px solid #E5DDC8; margin: 12px 0; }
         </div>
       </div>
       <div class="form-group settings-full">
+        <label>字體大小</label>
+        <div class="font-slider-row">
+          <input type="range" id="setFontSize" min="14" max="22" step="1" value="16" oninput="previewFontSize(this.value)">
+          <span class="font-size-value" id="fontSizeValue">16px</span>
+        </div>
+      </div>
+      <div class="form-group settings-full">
         <label>Apps Script URL / 同步網址</label>
         <input type="url" id="setSyncUrl" placeholder="貼上自己的 Apps Script Web App URL">
       </div>
@@ -313,7 +337,7 @@ hr { border: none; border-top: 1px solid #E5DDC8; margin: 12px 0; }
         <input type="number" id="setPostCareMin" min="5" max="240" value="30">
       </div>
       <div class="form-group">
-        <label>24H Log（小時後）</label>
+        <label>24H Log 日曆提醒（距體驗課幾小時後）</label>
         <input type="number" id="setLogHours" min="1" max="48" value="23">
       </div>
     </div>
@@ -427,6 +451,7 @@ const DEFAULT_SETTINGS = {
   defaultSignature: 'Helga',
   postClassSignature: 'Helga',
   brandColor: '#424A5A',
+  fontSize: 16,
   preDayMin: 1440,
   preClassMin: 30,
   postCareMin: 30,
@@ -499,6 +524,7 @@ function applyAppSettings() {
   const color = appSettings.brandColor || '#424A5A';
   document.documentElement.style.setProperty('--brand-color', color);
   document.documentElement.style.setProperty('--brand-color-rgb', hexToRgb(color));
+  document.documentElement.style.setProperty('--app-font-size', (appSettings.fontSize || 16) + 'px');
   const theme = document.querySelector('meta[name="theme-color"]');
   if (theme) theme.setAttribute('content', color);
   const pomoTab = document.getElementById('pomodoroTab');
@@ -514,6 +540,9 @@ function populateSettingsForm() {
   set('setPostClassSignature', appSettings.postClassSignature);
   set('setBrandColor', appSettings.brandColor);
   set('setBrandColorText', appSettings.brandColor);
+  set('setFontSize', appSettings.fontSize || 16);
+  const fontSizeValue = document.getElementById('fontSizeValue');
+  if (fontSizeValue) fontSizeValue.textContent = (appSettings.fontSize || 16) + 'px';
   set('setPreDayMin', appSettings.preDayMin);
   set('setPreClassMin', appSettings.preClassMin);
   set('setPostCareMin', appSettings.postCareMin);
@@ -535,12 +564,20 @@ function readSettingsForm() {
     defaultSignature: val('setDefaultSignature') || val('setConsultantName') || '顧問',
     postClassSignature: val('setPostClassSignature') || val('setDefaultSignature') || val('setConsultantName') || '顧問',
     brandColor: /^#[0-9a-fA-F]{6}$/.test(colorText) ? colorText : '#424A5A',
+    fontSize: Math.max(14, Math.min(22, num('setFontSize', 16))),
     preDayMin: Math.max(60, Math.min(2880, num('setPreDayMin', 1440))),
     preClassMin: Math.max(5, Math.min(180, num('setPreClassMin', 30))),
     postCareMin: Math.max(5, Math.min(240, num('setPostCareMin', 30))),
     logHours: Math.max(1, Math.min(48, num('setLogHours', 23))),
     pomodoroEnabled: !!document.getElementById('setPomodoroEnabled')?.checked
   };
+}
+
+function previewFontSize(value) {
+  const size = Math.max(14, Math.min(22, parseInt(value, 10) || 16));
+  document.documentElement.style.setProperty('--app-font-size', size + 'px');
+  const el = document.getElementById('fontSizeValue');
+  if (el) el.textContent = size + 'px';
 }
 
 function saveAppSettings() {
@@ -569,7 +606,7 @@ async function testSyncUrl() {
 }
 
 function copySetupSummary() {
-  const summary = `AT 學員管理設定\n顧問名稱：${appSettings.consultantName}\n同步網址：${appSettings.syncUrl ? '已設定' : '未設定'}\n預設簽名：${appSettings.defaultSignature}\n課後署名：${appSettings.postClassSignature}\n品牌色：${appSettings.brandColor}\n課前一天提醒：${appSettings.preDayMin} 分鐘前\n課前自我提醒：${appSettings.preClassMin} 分鐘前\n課後關懷：${appSettings.postCareMin} 分鐘後\n24H Log：${appSettings.logHours} 小時後\n番茄鐘：${appSettings.pomodoroEnabled ? '啟用' : '關閉'}`;
+  const summary = `AT 學員管理設定\n顧問名稱：${appSettings.consultantName}\n同步網址：${appSettings.syncUrl ? '已設定' : '未設定'}\n預設簽名：${appSettings.defaultSignature}\n課後署名：${appSettings.postClassSignature}\n品牌色：${appSettings.brandColor}\n字體大小：${appSettings.fontSize || 16}px\n課前一天提醒：${appSettings.preDayMin} 分鐘前\n課前自我提醒：${appSettings.preClassMin} 分鐘前\n課後關懷：${appSettings.postCareMin} 分鐘後\n24H Log：課程開始後即進入待辦，24 小時內完成；日曆提醒設於 ${appSettings.logHours} 小時後\n番茄鐘：${appSettings.pomodoroEnabled ? '啟用' : '關閉'}`;
   copyText(summary);
 }
 
@@ -814,11 +851,13 @@ function buildReminderTasks() {
         action,
         time: ct,
         reminderAt,
-        sortKey: reminderAt.getTime(),
+        deadlineAt: options.deadlineAt || null,
+        sortKey: (options.sortAt || reminderAt).getTime(),
         urgent: !!options.urgent,
         dueSoon: !!options.dueSoon,
         calendarOffsetMin: offsetMin,
-        calendarDur: options.dur || 10
+        calendarDur: options.dur || 10,
+        isLogTask: !!options.isLogTask
       });
     };
 
@@ -830,11 +869,18 @@ function buildReminderTasks() {
 
     if (s.status === 'done') {
       pushTask(`課後 ${appSettings.postCareMin} 分鐘關懷`, '傳送關懷訊息', appSettings.postCareMin, { dur: 10 });
-      pushTask('24H Log 跟進', '完成業務系統紀錄', appSettings.logHours * 60, { dur: 30 });
     }
 
-    if (s.status === 'contacted') {
-      pushTask('24H Log 跟進', '完成業務系統紀錄', appSettings.logHours * 60, { dur: 30 });
+    // 24H Log：體驗課時間一到就進入待辦，截止時間為體驗課時間 + 24 小時。
+    // 這符合「課後 24 小時內完成 log」；完成後按「完成並標記已 log」才會消失。
+    if (!['log', 'converted', 'lost'].includes(s.status)) {
+      const deadlineAt = new Date(ct.getTime() + 24 * 60 * 60 * 1000);
+      pushTask('24H Log 跟進', '課後 24 小時內完成業務系統紀錄', 0, {
+        dur: 30,
+        isLogTask: true,
+        deadlineAt,
+        sortAt: deadlineAt
+      });
     }
   });
 
@@ -843,32 +889,68 @@ function buildReminderTasks() {
 
 function decorateTaskTiming(tasks) {
   const now = new Date();
-  return tasks.map(t => ({
-    ...t,
-    overdue: t.reminderAt <= now,
-    urgent: t.reminderAt <= now,
-    dueSoon: t.reminderAt > now && (t.reminderAt - now) <= 60 * 60000
-  })).sort((a,b) => a.sortKey - b.sortKey);
+  return tasks.map(t => {
+    if (t.isLogTask) {
+      const active = now >= t.reminderAt;
+      const overdue = now > t.deadlineAt;
+      const dueSoon = active && !overdue && (t.deadlineAt - now) <= 6 * 60 * 60000;
+      return { ...t, active, overdue, urgent: overdue || dueSoon, dueSoon };
+    }
+    return {
+      ...t,
+      overdue: t.reminderAt <= now,
+      urgent: t.reminderAt <= now,
+      dueSoon: t.reminderAt > now && (t.reminderAt - now) <= 60 * 60000
+    };
+  }).sort((a,b) => a.sortKey - b.sortKey);
 }
 
 function getPendingTasks() {
   const now = new Date();
   const tasks = buildReminderTasks().filter(t => {
+    if (t.isLogTask) {
+      // 課程開始後就顯示，直到使用者完成並標記已 log。
+      return now >= t.reminderAt;
+    }
+
     const diffMin = (t.reminderAt - now) / 60000;
     const afterMin = -diffMin;
 
     if (t.type.includes('課前一天')) return diffMin <= 360 && afterMin <= 360;
     if (t.type.includes('自我提醒')) return diffMin <= appSettings.preClassMin && afterMin <= 30;
     if (t.type.includes('關懷')) return diffMin <= appSettings.postCareMin && afterMin <= 90;
-    if (t.type.includes('Log')) return diffMin <= 60 && afterMin <= 180;
     return false;
   });
   return decorateTaskTiming(tasks);
 }
 
+function dayRangeFromInput(inputValue) {
+  const [y, m, d] = String(inputValue || dateInputValue(new Date())).split('-').map(Number);
+  const start = new Date(y, (m || 1) - 1, d || 1, 0, 0, 0, 0);
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  return { start, end };
+}
+
 function getTasksForSelectedDate() {
   if (!selectedTaskDate) selectedTaskDate = dateInputValue(new Date());
-  return decorateTaskTiming(buildReminderTasks().filter(t => sameDateByInput(t.reminderAt, selectedTaskDate)));
+  const range = dayRangeFromInput(selectedTaskDate);
+  return decorateTaskTiming(buildReminderTasks().filter(t => {
+    if (t.isLogTask) {
+      // 指定日期只要落在「課程開始～24H 截止」區間內，就顯示這筆 Log 待辦。
+      return t.reminderAt < range.end && t.deadlineAt >= range.start;
+    }
+    return sameDateByInput(t.reminderAt, selectedTaskDate);
+  }));
+}
+
+function formatDurationUntil(target) {
+  const now = new Date();
+  const diffMin = Math.round((target - now) / 60000);
+  const abs = Math.abs(diffMin);
+  const h = Math.floor(abs / 60);
+  const m = abs % 60;
+  const text = h > 0 ? `${h} 小時${m ? ' ' + m + ' 分' : ''}` : `${m} 分鐘`;
+  return diffMin >= 0 ? `剩 ${text}` : `已逾期 ${text}`;
 }
 
 function renderTasks() {
@@ -885,7 +967,9 @@ function renderTasks() {
     const timeCls = t.urgent ? 'urgent' : '';
     const now = new Date();
     let timeStr;
-    if (taskViewMode === 'date') {
+    if (t.isLogTask) {
+      timeStr = `課程 ${fmt(t.time)} 起算｜截止 ${fmt(t.deadlineAt)} 前｜${formatDurationUntil(t.deadlineAt)}`;
+    } else if (taskViewMode === 'date') {
       timeStr = `${t.overdue ? '已逾期｜' : ''}提醒 ${fmtTime(t.reminderAt)}｜課程 ${fmt(t.time)}`;
     } else {
       const diff = (t.reminderAt - now) / (1000 * 60);
