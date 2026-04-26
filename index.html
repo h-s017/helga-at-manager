@@ -1,0 +1,1572 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#424A5A">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.png" type="image/png">
+<link rel="apple-touch-icon" href="icon.png">
+<title>AT 學員管理 | Hana</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+body { font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", sans-serif; background: #F4F1EB; color: #2C2C2C; padding: 16px; padding-bottom: 100px; max-width: 720px; margin: 0 auto; min-height: 100vh; }
+
+header { background: #424A5A; color: white; padding: 18px 20px; border-radius: 12px; margin-bottom: 16px; }
+header h1 { font-size: 18px; font-weight: 600; }
+header .sub { font-size: 12px; opacity: 0.7; margin-top: 4px; }
+
+.tabs { display: flex; gap: 6px; margin-bottom: 16px; background: white; padding: 4px; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+.tab { flex: 1; padding: 10px 6px; text-align: center; border-radius: 7px; font-size: 12px; cursor: pointer; transition: all 0.2s; font-weight: 500; }
+.tab.active { background: #424A5A; color: white; }
+.tab .badge { background: #D85A30; color: white; border-radius: 10px; padding: 1px 5px; font-size: 10px; margin-left: 3px; }
+
+.alert-bar { background: #FFF4E5; border: 1px solid #F0B94A; border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; font-size: 13px; color: #8B5A00; display: none; }
+.alert-bar.show { display: block; }
+
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 16px; }
+.stat-box { background: white; padding: 10px 4px; border-radius: 8px; text-align: center; }
+.stat-num { font-size: 20px; font-weight: 700; color: #424A5A; }
+.stat-label { font-size: 10px; color: #777; margin-top: 2px; }
+
+.search-box { width: 100%; padding: 10px 14px; border: 1px solid #DDD6C5; border-radius: 8px; font-size: 14px; margin-bottom: 12px; background: white; font-family: inherit; }
+.search-box:focus { outline: none; border-color: #424A5A; }
+
+.filter-bar { display: flex; gap: 6px; margin-bottom: 12px; overflow-x: auto; padding-bottom: 4px; }
+.filter-bar::-webkit-scrollbar { display: none; }
+.filter-chip { padding: 6px 12px; background: white; border-radius: 20px; font-size: 12px; cursor: pointer; white-space: nowrap; border: 1px solid #E5DDC8; }
+.filter-chip.active { background: #424A5A; color: white; border-color: #424A5A; }
+
+.card { background: white; border-radius: 10px; padding: 14px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+.card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; gap: 8px; }
+.card-name { font-size: 15px; font-weight: 600; color: #2C2C2C; }
+.card-uid { font-size: 11px; color: #888; margin-top: 2px; }
+.card-info { font-size: 12px; color: #666; line-height: 1.7; margin-top: 6px; }
+.card-info .label { color: #999; margin-right: 4px; }
+.card-need { font-size: 12px; color: #555; background: #F8F6F1; padding: 6px 8px; border-radius: 6px; margin-top: 8px; }
+.card-time { font-size: 11px; color: #888; margin-top: 8px; }
+
+.status { display: inline-block; padding: 3px 9px; border-radius: 11px; font-size: 11px; font-weight: 500; flex-shrink: 0; }
+.s-new { background: #E8F4F8; color: #2A6F86; }
+.s-contacted { background: #FFF1D6; color: #8B5A00; }
+.s-booked { background: #DFEEDA; color: #2C5F1F; }
+.s-done { background: #E8E2F5; color: #5A3F8C; }
+.s-log { background: #FAE0D5; color: #B0421A; }
+.s-converted { background: #D4F0DD; color: #1B6B36; }
+.s-lost { background: #EEEEEE; color: #888; }
+
+.actions { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.btn { padding: 7px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; border: none; font-weight: 500; transition: all 0.15s; font-family: inherit; }
+.btn:active { transform: scale(0.96); }
+.btn-primary { background: #424A5A; color: white; }
+.btn-second { background: #EAE4D8; color: #5C6070; }
+.btn-call { background: #FF6B35; color: white; }
+.btn-cal { background: #4A86E8; color: white; }
+.btn-line { background: #06C755; color: white; }
+.btn-edit { background: #E8E8E8; color: #555; }
+.btn-del { background: transparent; color: #C44; padding: 7px 8px; }
+
+.fab { position: fixed; bottom: 24px; right: 16px; left: 16px; max-width: 688px; margin: 0 auto; pointer-events: none; }
+.fab-btn { width: 100%; padding: 16px; background: #424A5A; color: white; border: none; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 16px rgba(66,74,90,0.28); pointer-events: auto; }
+.fab-btn:active { transform: translateY(1px); }
+
+.modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 100; overflow-y: auto; }
+.modal.show { display: block; }
+.modal-box { background: white; border-radius: 14px; padding: 20px; max-width: 600px; margin: 20px auto; }
+.modal-title { font-size: 17px; font-weight: 600; margin-bottom: 14px; color: #424A5A; }
+.modal-close { float: right; font-size: 22px; cursor: pointer; color: #888; line-height: 1; padding: 0 4px; }
+
+.form-group { margin-bottom: 12px; }
+.form-group label { display: block; font-size: 12px; color: #555; margin-bottom: 4px; font-weight: 500; }
+.form-group input, .form-group select, .form-group textarea { width: 100%; padding: 9px 11px; border: 1px solid #DDD6C5; border-radius: 7px; font-size: 14px; font-family: inherit; background: white; }
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: #424A5A; }
+.form-group textarea { resize: vertical; min-height: 60px; }
+.form-row { display: flex; gap: 8px; }
+.form-row .form-group { flex: 1; }
+
+.empty { text-align: center; padding: 50px 20px; color: #999; font-size: 13px; }
+.empty-icon { font-size: 36px; margin-bottom: 10px; opacity: 0.4; }
+
+.template-item { background: white; padding: 10px 12px; border-radius: 6px; margin-bottom: 8px; font-size: 13px; line-height: 1.6; cursor: pointer; border: 1px solid #E5DDC8; }
+.template-item:hover, .template-item:active { border-color: #424A5A; background: #F4F1EB; }
+.template-label { font-size: 11px; color: #424A5A; font-weight: 600; margin-bottom: 4px; }
+.template-text { color: #333; white-space: pre-wrap; }
+
+.toast { position: fixed; bottom: 110px; left: 50%; transform: translateX(-50%); background: #424A5A; color: white; padding: 10px 18px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity 0.3s; z-index: 1000; pointer-events: none; }
+.toast.show { opacity: 1; }
+
+.task-card { background: white; border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; border-left: 4px solid #424A5A; }
+.task-card.urgent { border-left-color: #D85A30; background: #FFF8F4; }
+.task-card.due-soon { border-left-color: #F0B94A; }
+.task-name { font-size: 14px; font-weight: 600; }
+.task-action { font-size: 12px; color: #666; margin-top: 2px; }
+.task-time { font-size: 11px; color: #888; margin-top: 4px; font-weight: 500; }
+.task-time.urgent { color: #D85A30; }
+.task-overdue-badge { display:inline-block; margin-left:6px; padding:1px 6px; border-radius:10px; background:#FAE0D5; color:#B0421A; font-size:10px; font-weight:600; vertical-align:middle; }
+
+.task-date-panel { background:white; border-radius:10px; padding:12px; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05); display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:center; }
+.task-date-panel label { font-size:13px; color:#555; display:flex; align-items:center; gap:6px; }
+.task-date-panel input { padding:7px 9px; border:1px solid #DDD6C5; border-radius:7px; font-size:13px; font-family:inherit; background:white; }
+.task-date-panel input:focus { outline:none; border-color:#424A5A; }
+.task-date-btn { padding:7px 10px; border:none; border-radius:7px; background:#EAE4D8; color:#5C6070; font-size:12px; font-family:inherit; cursor:pointer; }
+.task-date-btn.active { background:#424A5A; color:white; }
+.task-date-hint { text-align:center; font-size:12px; color:#888; margin:-2px 0 10px; }
+
+.section-title { font-size: 14px; font-weight: 600; color: #424A5A; margin: 12px 0 8px; padding-left: 4px; }
+
+/* Pomodoro */
+.pomo-time-config { background: white; border-radius: 10px; padding: 12px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+.pomo-time-row { display: flex; gap: 12px; justify-content: center; align-items: center; }
+.pomo-time-row label { font-size: 13px; color: #555; display: flex; align-items: center; gap: 6px; }
+.pomo-time-row input { width: 50px; padding: 5px 8px; border: 1px solid #DDD6C5; border-radius: 6px; font-size: 14px; text-align: center; font-family: inherit; }
+.pomo-time-row input:focus { outline: none; border-color: #424A5A; }
+.pomo-card { background: white; border-radius: 12px; padding: 24px 20px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+.pomo-status { font-size: 13px; color: #424A5A; font-weight: 600; margin-bottom: 12px; }
+.pomo-cat { display:flex; justify-content:center; margin-bottom: 10px; }
+.pomo-cat-frame { width: 240px; height: 220px; overflow:hidden; border-radius: 18px; display:flex; align-items:center; justify-content:center; background:#fff; }
+.pomo-cat-image { width: 230px; height: 210px; object-fit: contain; object-position: center; transform: scale(1); transition: opacity .25s ease, transform .4s ease; user-select:none; -webkit-user-drag:none; }
+.pomo-cat.breathing .pomo-cat-image { animation: catFloat 4.2s ease-in-out infinite; }
+.pomo-cat.working .pomo-cat-image { transform: scale(1.02); }
+.pomo-cat.resting .pomo-cat-image { opacity: .98; }
+@keyframes catFloat { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-3px) scale(1.02); } }
+.pomo-time { font-size: 48px; font-weight: 200; color: #2C2C2C; margin: 8px 0 16px; font-variant-numeric: tabular-nums; letter-spacing: 1px; }
+.pomo-progress { width: 100%; height: 4px; background: #EAE4D8; border-radius: 2px; overflow: hidden; margin-bottom: 20px; }
+.pomo-progress-bar { height: 100%; background: #424A5A; width: 0%; transition: width 1s linear; }
+.pomo-controls { display: flex; gap: 8px; justify-content: center; margin-bottom: 16px; }
+.pomo-btn { padding: 10px 24px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; border: none; font-family: inherit; }
+.pomo-btn-primary { background: #424A5A; color: white; }
+.pomo-btn-second { background: #EAE4D8; color: #5C6070; }
+.pomo-stats { font-size: 12px; color: #888; }
+.pomo-stats strong { color: #424A5A; font-weight: 600; }
+
+
+/* Settings / consultant template */
+:root { --brand-color:#424A5A; --brand-color-rgb:66,74,90; --app-bg:#F4F1EB; }
+.settings-card { background:white; border-radius:12px; padding:16px; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05); }
+.settings-card .hint { font-size:12px; color:#888; line-height:1.6; margin:4px 0 12px; }
+.settings-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.settings-full { grid-column: 1 / -1; }
+.settings-actions { display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
+.settings-toggle { display:flex; align-items:center; gap:8px; font-size:14px; color:#555; }
+.settings-color-row { display:flex; gap:8px; align-items:center; }
+.settings-color-row input[type="color"] { width:48px; height:38px; padding:2px; }
+@media (max-width:540px) { .settings-grid { grid-template-columns:1fr; } }
+body { background: var(--app-bg); }
+header, .tab.active, .filter-chip.active, .btn-primary, .fab-btn, .toast, .pomo-btn-primary, .pomo-progress-bar, .task-date-btn.active { background: var(--brand-color) !important; }
+.stat-num, .modal-title, .section-title, .template-label, .pomo-status, .pomo-stats strong { color: var(--brand-color) !important; }
+.search-box:focus, .form-group input:focus, .form-group select:focus, .form-group textarea:focus, .pomo-time-row input:focus, .task-date-panel input:focus { border-color: var(--brand-color) !important; }
+.task-card { border-left-color: var(--brand-color) !important; }
+.fab-btn { box-shadow: 0 4px 16px rgba(var(--brand-color-rgb),0.28) !important; }
+
+a { color: #4A86E8; }
+hr { border: none; border-top: 1px solid #E5DDC8; margin: 12px 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px">
+    <div>
+      <h1>AT 學員管理</h1>
+      <div class="sub" id="todayDate"></div>
+    </div>
+    <div style="text-align:right">
+      <div id="syncStatus" style="font-size:11px; opacity:0.7; margin-bottom:4px">準備中...</div>
+      <button onclick="syncFromCloud()" style="background:rgba(255,255,255,0.15); color:white; border:none; padding:5px 10px; border-radius:6px; font-size:11px; cursor:pointer">🔄 同步</button>
+      <button id="installBtn" onclick="installApp()" style="display:none; margin-top:5px; background:rgba(255,255,255,0.15); color:white; border:none; padding:5px 10px; border-radius:6px; font-size:11px; cursor:pointer">📲 安裝</button>
+    </div>
+  </div>
+</header>
+
+<div class="alert-bar" id="alertBar"></div>
+
+<div class="stats">
+  <div class="stat-box"><div class="stat-num" id="statTotal">0</div><div class="stat-label">總學員</div></div>
+  <div class="stat-box"><div class="stat-num" id="statBooked">0</div><div class="stat-label">已約課</div></div>
+  <div class="stat-box"><div class="stat-num" id="statPending">0</div><div class="stat-label">待跟進</div></div>
+  <div class="stat-box"><div class="stat-num" id="statConverted">0</div><div class="stat-label">已轉正</div></div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" data-view="tasks">待辦<span class="badge" id="taskBadge" style="display:none">0</span></div>
+  <div class="tab" data-view="list">名單</div>
+  <div class="tab" data-view="templates">範本</div>
+  <div class="tab" data-view="pomodoro" id="pomodoroTab">專注</div>
+  <div class="tab" data-view="settings">設定</div>
+</div>
+
+<div id="tasksView">
+  <div class="task-date-panel">
+    <label>查看日期 <input type="date" id="taskDateInput"></label>
+    <button class="task-date-btn active" id="taskTodayBtn" onclick="setTaskDateToday()">今天</button>
+    <button class="task-date-btn" onclick="setTaskDateTomorrow()">明天</button>
+    <button class="task-date-btn" id="taskRealtimeBtn" onclick="setTaskRealtime()">即時待辦</button>
+  </div>
+  <div class="task-date-hint" id="taskDateHint"></div>
+  <div id="tasksList"></div>
+</div>
+
+<div id="listView" style="display:none">
+  <input type="text" class="search-box" id="searchBox" placeholder="搜尋姓名、UID、手機...">
+  <div class="filter-bar">
+    <div class="filter-chip active" data-filter="all">全部</div>
+    <div class="filter-chip" data-filter="new">新名單</div>
+    <div class="filter-chip" data-filter="contacted">已聯繫</div>
+    <div class="filter-chip" data-filter="booked">已約課</div>
+    <div class="filter-chip" data-filter="done">體驗完成</div>
+    <div class="filter-chip" data-filter="log">已 log</div>
+    <div class="filter-chip" data-filter="converted">體轉正</div>
+    <div class="filter-chip" data-filter="lost">流失</div>
+  </div>
+  <div id="studentList"></div>
+</div>
+
+<div id="templatesView" style="display:none">
+  <div class="section-title">點擊複製訊息範本</div>
+  <div id="templateList"></div>
+  <hr>
+  <div class="section-title">資料管理</div>
+  <button class="btn btn-second" onclick="exportData()">匯出資料 (JSON)</button>
+  <button class="btn btn-second" onclick="document.getElementById('importFile').click()">匯入資料</button>
+  <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+</div>
+
+<div id="pomodoroView" style="display:none">
+  <div class="pomo-time-config">
+    <div class="pomo-time-row">
+      <label>工作 <input type="number" id="pomoWork" value="25" min="1" max="120"> 分鐘</label>
+      <label>休息 <input type="number" id="pomoRest" value="5" min="1" max="60"> 分鐘</label>
+    </div>
+  </div>
+
+  <div class="pomo-card">
+    <div class="pomo-status" id="pomoStatus">準備工作</div>
+    <div class="pomo-cat" id="pomoCat">
+      <div class="pomo-cat-frame">
+        <img id="pomoCatImg" class="pomo-cat-image" src="cat_idle.png" alt="美短貓番茄鐘角色">
+      </div>
+    </div>
+    <div class="pomo-time" id="pomoTime">25:00</div>
+    <div class="pomo-progress">
+      <div class="pomo-progress-bar" id="pomoProgress"></div>
+    </div>
+    <div class="pomo-controls">
+      <button class="pomo-btn pomo-btn-primary" id="pomoStart" onclick="pomoToggle()">開始</button>
+      <button class="pomo-btn pomo-btn-second" onclick="pomoReset()">重置</button>
+    </div>
+    <div class="pomo-stats">
+      今日完成 <strong id="pomoCount">0</strong> 個番茄鐘
+    </div>
+  </div>
+</div>
+
+
+<div id="settingsView" style="display:none">
+  <div class="settings-card">
+    <div class="section-title" style="margin-top:0">第一次使用設定</div>
+    <div class="hint">每位顧問請填入自己的資料與 Apps Script URL。這些設定只會存在自己的瀏覽器裡，不會和其他顧問共用。</div>
+    <div class="settings-grid">
+      <div class="form-group">
+        <label>顧問名稱</label>
+        <input type="text" id="setConsultantName" placeholder="例如：Helga">
+      </div>
+      <div class="form-group">
+        <label>品牌色</label>
+        <div class="settings-color-row">
+          <input type="color" id="setBrandColor" value="#424A5A">
+          <input type="text" id="setBrandColorText" placeholder="#424A5A">
+        </div>
+      </div>
+      <div class="form-group settings-full">
+        <label>Apps Script URL / 同步網址</label>
+        <input type="url" id="setSyncUrl" placeholder="貼上自己的 Apps Script Web App URL">
+      </div>
+      <div class="form-group">
+        <label>預設簽名</label>
+        <input type="text" id="setDefaultSignature" placeholder="例如：Helga">
+      </div>
+      <div class="form-group">
+        <label>課後訊息署名</label>
+        <input type="text" id="setPostClassSignature" placeholder="例如：Helga">
+      </div>
+    </div>
+  </div>
+
+  <div class="settings-card">
+    <div class="section-title" style="margin-top:0">提醒時間</div>
+    <div class="hint">可依顧問習慣調整待辦與日曆提醒時間。</div>
+    <div class="settings-grid">
+      <div class="form-group">
+        <label>課前一天提醒（分鐘前）</label>
+        <input type="number" id="setPreDayMin" min="60" max="2880" value="1440">
+      </div>
+      <div class="form-group">
+        <label>課前自我提醒（分鐘前）</label>
+        <input type="number" id="setPreClassMin" min="5" max="180" value="30">
+      </div>
+      <div class="form-group">
+        <label>課後關懷（分鐘後）</label>
+        <input type="number" id="setPostCareMin" min="5" max="240" value="30">
+      </div>
+      <div class="form-group">
+        <label>24H Log（小時後）</label>
+        <input type="number" id="setLogHours" min="1" max="48" value="23">
+      </div>
+    </div>
+    <label class="settings-toggle"><input type="checkbox" id="setPomodoroEnabled" checked> 啟用專注番茄鐘</label>
+  </div>
+
+  <div class="settings-card">
+    <div class="section-title" style="margin-top:0">設定操作</div>
+    <div class="settings-actions">
+      <button class="btn btn-primary" onclick="saveAppSettings()">儲存設定</button>
+      <button class="btn btn-second" onclick="testSyncUrl()">測試同步</button>
+      <button class="btn btn-second" onclick="copySetupSummary()">複製設定摘要</button>
+    </div>
+  </div>
+</div>
+
+<div class="fab">
+  <button class="fab-btn" id="addBtn">＋ 新增學員</button>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal" id="editModal">
+  <div class="modal-box">
+    <span class="modal-close" onclick="closeModal()">×</span>
+    <div class="modal-title" id="modalTitle">新增學員</div>
+    <div class="form-group">
+      <label>姓名 *</label>
+      <input type="text" id="fName" required>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>UID</label>
+        <input type="text" id="fUid">
+      </div>
+      <div class="form-group">
+        <label>手機</label>
+        <input type="tel" id="fPhone">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>登入方式</label>
+        <select id="fLogin">
+          <option value="">--</option>
+          <option>Email</option>
+          <option>Phone</option>
+          <option>Apple</option>
+          <option>Google</option>
+          <option>Facebook</option>
+          <option>Line</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>LINE ID</label>
+        <input type="text" id="fLine">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>需求備註</label>
+      <textarea id="fNeed" placeholder="想學什麼語言、目的、預算、時段偏好等..."></textarea>
+    </div>
+    <div class="form-group">
+      <label>老師姓名</label>
+      <input type="text" id="fTeacherName" placeholder="例如：芷安">
+    </div>
+    <div class="form-group">
+      <label>老師連結</label>
+      <input type="url" id="fTeacher" placeholder="https://amazingtalker.com/...">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>體驗課時間</label>
+        <input type="datetime-local" id="fClassTime">
+      </div>
+      <div class="form-group">
+        <label>狀態</label>
+        <select id="fStatus">
+          <option value="new">新名單</option>
+          <option value="contacted">已聯繫</option>
+          <option value="booked">已約課</option>
+          <option value="done">體驗完成</option>
+          <option value="log">已 log</option>
+          <option value="converted">體轉正</option>
+          <option value="lost">流失</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:flex; gap:8px; margin-top:8px">
+      <button class="btn btn-primary" onclick="saveStudent()" style="flex:1; padding:11px">儲存</button>
+      <button class="btn btn-second" onclick="closeModal()" style="padding:11px 16px">取消</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const STORAGE_KEY = 'at_students_v1';
+const SETTINGS_KEY = 'at_manager_settings_v1';
+let students = [];
+let currentView = 'tasks';
+let currentFilter = 'all';
+let editingId = null;
+let taskViewMode = 'date'; // date / realtime
+let selectedTaskDate = '';
+
+const DEFAULT_SETTINGS = {
+  consultantName: 'Helga',
+  syncUrl: '',
+  defaultSignature: 'Helga',
+  postClassSignature: 'Helga',
+  brandColor: '#424A5A',
+  preDayMin: 1440,
+  preClassMin: 30,
+  postCareMin: 30,
+  logHours: 23,
+  pomodoroEnabled: true
+};
+let appSettings = loadAppSettings();
+
+function loadAppSettings() {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    return { ...DEFAULT_SETTINGS, ...(raw ? JSON.parse(raw) : {}) };
+  } catch (e) {
+    return { ...DEFAULT_SETTINGS };
+  }
+}
+
+function getSheetsApiUrl() {
+  return (appSettings.syncUrl || '').trim();
+}
+
+function hexToRgb(hex) {
+  const clean = String(hex || '#424A5A').replace('#','');
+  const num = parseInt(clean.length === 3 ? clean.split('').map(x=>x+x).join('') : clean, 16);
+  if (Number.isNaN(num)) return '66,74,90';
+  return `${(num>>16)&255},${(num>>8)&255},${num&255}`;
+}
+
+function applyAppSettings() {
+  const color = appSettings.brandColor || '#424A5A';
+  document.documentElement.style.setProperty('--brand-color', color);
+  document.documentElement.style.setProperty('--brand-color-rgb', hexToRgb(color));
+  const theme = document.querySelector('meta[name="theme-color"]');
+  if (theme) theme.setAttribute('content', color);
+  const pomoTab = document.getElementById('pomodoroTab');
+  if (pomoTab) pomoTab.style.display = appSettings.pomodoroEnabled ? '' : 'none';
+  if (!appSettings.pomodoroEnabled && currentView === 'pomodoro') switchView('tasks');
+}
+
+function populateSettingsForm() {
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val ?? ''; };
+  set('setConsultantName', appSettings.consultantName);
+  set('setSyncUrl', appSettings.syncUrl);
+  set('setDefaultSignature', appSettings.defaultSignature);
+  set('setPostClassSignature', appSettings.postClassSignature);
+  set('setBrandColor', appSettings.brandColor);
+  set('setBrandColorText', appSettings.brandColor);
+  set('setPreDayMin', appSettings.preDayMin);
+  set('setPreClassMin', appSettings.preClassMin);
+  set('setPostCareMin', appSettings.postCareMin);
+  set('setLogHours', appSettings.logHours);
+  const pomo = document.getElementById('setPomodoroEnabled');
+  if (pomo) pomo.checked = !!appSettings.pomodoroEnabled;
+}
+
+function readSettingsForm() {
+  const val = id => (document.getElementById(id)?.value || '').trim();
+  const num = (id, fallback) => {
+    const n = parseInt(val(id), 10);
+    return Number.isFinite(n) ? n : fallback;
+  };
+  const colorText = val('setBrandColorText') || val('setBrandColor') || '#424A5A';
+  return {
+    consultantName: val('setConsultantName') || '顧問',
+    syncUrl: val('setSyncUrl'),
+    defaultSignature: val('setDefaultSignature') || val('setConsultantName') || '顧問',
+    postClassSignature: val('setPostClassSignature') || val('setDefaultSignature') || val('setConsultantName') || '顧問',
+    brandColor: /^#[0-9a-fA-F]{6}$/.test(colorText) ? colorText : '#424A5A',
+    preDayMin: Math.max(60, Math.min(2880, num('setPreDayMin', 1440))),
+    preClassMin: Math.max(5, Math.min(180, num('setPreClassMin', 30))),
+    postCareMin: Math.max(5, Math.min(240, num('setPostCareMin', 30))),
+    logHours: Math.max(1, Math.min(48, num('setLogHours', 23))),
+    pomodoroEnabled: !!document.getElementById('setPomodoroEnabled')?.checked
+  };
+}
+
+function saveAppSettings() {
+  appSettings = readSettingsForm();
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(appSettings));
+  applyAppSettings();
+  populateSettingsForm();
+  render();
+  showToast('設定已儲存');
+}
+
+function renderSettings() {
+  populateSettingsForm();
+}
+
+async function testSyncUrl() {
+  const url = (document.getElementById('setSyncUrl')?.value || '').trim();
+  if (!url) { alert('請先貼上 Apps Script URL'); return; }
+  try {
+    const res = await fetch(url + '?action=list');
+    const data = await res.json();
+    alert(data.students ? '同步測試成功，可以讀取資料。' : '有連上，但回傳格式不含 students，請檢查 Apps Script。');
+  } catch (e) {
+    alert('同步測試失敗：請確認 Apps Script 已部署為 Web App，且網址正確。');
+  }
+}
+
+function copySetupSummary() {
+  const summary = `AT 學員管理設定\n顧問名稱：${appSettings.consultantName}\n同步網址：${appSettings.syncUrl ? '已設定' : '未設定'}\n預設簽名：${appSettings.defaultSignature}\n課後署名：${appSettings.postClassSignature}\n品牌色：${appSettings.brandColor}\n課前一天提醒：${appSettings.preDayMin} 分鐘前\n課前自我提醒：${appSettings.preClassMin} 分鐘前\n課後關懷：${appSettings.postCareMin} 分鐘後\n24H Log：${appSettings.logHours} 小時後\n番茄鐘：${appSettings.pomodoroEnabled ? '啟用' : '關閉'}`;
+  copyText(summary);
+}
+
+function applyTemplateFields(text, s = {}, label = '') {
+  const isPostClass = /課後|關懷|24 小時|一週後/.test(label);
+  const signature = isPostClass ? appSettings.postClassSignature : appSettings.defaultSignature;
+  return String(text || '')
+    .replace(/Helga/g, signature || '')
+    .replace(/\[顧問名稱\]/g, appSettings.consultantName || '')
+    .replace(/\[姓名\]/g, s.name || '')
+    .replace(/\[老師姓名\]/g, s.teacherName || '')
+    .replace(/\[上課時間\]/g, s.classTime ? fmt(s.classTime) : '')
+    .replace(/\[時間\]/g, s.classTime ? fmt(s.classTime) : '')
+    .replace(/\[登入方式\]/g, s.loginType || 'Email')
+    .replace(/\[老師連結\]/g, s.teacherUrl || '');
+}
+
+function copyTemplateByIndex(i) {
+  const tpl = TEMPLATES[i];
+  if (!tpl) return;
+  copyText(applyTemplateFields(tpl.text, {}, tpl.label));
+}
+
+
+// LINE message templates
+const TEMPLATES = [
+  {
+    label: '課前預約確認',
+    text: '哈囉，有幫您安排 [老師姓名] 老師 [上課時間] 的體驗課程，請問這時間可以嗎？\n\n老師的頁面：\n[老師連結]\n\n建議您可以先私訊老師，跟老師說一下學習需求，如有需要調整課程時間，請於上課前 12 小時調整唷～\n\n私訊老師跟第一次進教室教學：\nhttps://amazingtalker.elevio.help/zh-hant/articles/244\n\n流程說明：\n1. 登入官網或 APP\n2. 首頁（A、逛逛）會看到預約好的課程\n3. 點進去課程明細\n4. 找到老師的頁面點選「聯繫老師」，或者會有私訊的按鈕\n5. 完成課前問卷及傳個訊息給老師\n\nHelga'
+  },
+  {
+    label: '課前 24 小時完整提醒（含優惠）',
+    text: '📢 小提醒～我們 [上課時間] 有一堂體驗課！\n\n教室會在課程開始前 10 分鐘開放，登入方式請選擇 [登入方式] 登入唷～\n登入 AmazingTalker 後到首頁，找到待會要上的課程，點擊「進入教室」就可以上課囉！有空可以提早上去熟悉一下畫面唷～\n\n課後再麻煩幫我留個 10 分鐘，我會打電話關心一下上課的狀況。\n\n另外～老師會在課後送您一張「體驗課後 24 小時內完成購課」的折價券，可以直接在老師的對話框領取，搭配堂數折扣買課最划算！課後可以跟老師討論一下唷～\n\n💎 堂數折扣：\n• 單次購買 20 堂課或 20 堂的倍數：85 折（最優惠）\n• 單次購買 10 堂：9 折\n• 單次購買 5 堂：95 折\n\n如有需要調整請提早到系統內調整，確認上線沒問題也再麻煩留個貼圖給我唷～😉💖\n\nHelga'
+  },
+  {
+    label: '設備準備說明',
+    text: '上課設備準備：\n\n💻 筆電：\n直接使用 Google 瀏覽器，登入平台後會看到預約的課程教室。建議先下載桌面版 AT 教室。\n\n📱 平板或手機：\n請下載「Amazingtalker」App 與「Zoom」App，預約好的課程在 Amazingtalker App 中可以看到。\n\n有任何問題隨時跟我說～\nHelga'
+  },
+  {
+    label: '調整課程時間說明',
+    text: '如需要調整課程時間，可以參考這個教學：\nhttps://amazingtalker.elevio.help/zh-hant/articles/338\n\n流程說明：\n1. 登入官網或 APP，首頁（A、逛逛）會看到預約好的課程\n2. 點進去課程明細，取消時間\n3. 到老師頁面安排新的時段，或請顧問協助安排\n\n有需要協助再跟我說～\nHelga'
+  },
+  {
+    label: '課前 30 分鐘自我提醒',
+    text: '⚠️ [姓名] 30 分鐘後上課\n注意 LINE 訊息！'
+  },
+  {
+    label: '課後 30 分鐘關懷',
+    text: '哈囉 [姓名]～剛剛體驗課順利嗎？\n還習慣老師的教學方式嗎？\n如果有任何想法都可以跟我說～\nHelga'
+  },
+  {
+    label: '課後 24 小時跟進',
+    text: '哈囉 [姓名]，我是 Helga～\n關於昨天的體驗課，不知道你後續的學習計畫如何呢？\n如果有想要正式開始上課，這邊可以協助你規劃適合的課程組合，也有一些優惠方案可以介紹給你 :)\n方便的話我們約個時間聊聊？'
+  },
+  {
+    label: '優惠促轉訊息',
+    text: '哈囉 [姓名]～\n想跟你分享一個訊息：本週有限時優惠方案，如果有打算開始正式上課，現在報名很划算！\n要不要我幫你算一下你想學的課程組合？\nHelga'
+  },
+  {
+    label: '一週後關懷',
+    text: '哈囉 [姓名]，最近好嗎？\n上週的體驗課之後，有持續學習的想法嗎？\n不論是想換老師、調整方向、或是有任何疑問，都可以跟我說～\nHelga'
+  }
+];
+
+// === Cloud Storage Configuration ===
+
+let isSyncing = false;
+let lastSyncTime = null;
+
+// === Storage ===
+async function load() {
+  applyAppSettings();
+  populateSettingsForm();
+  // Step 1: load from local cache first (instant display)
+  try {
+    const data = localStorage.getItem(STORAGE_KEY);
+    students = data ? JSON.parse(data) : [];
+  } catch (e) { students = []; }
+  
+  render();
+  
+  // Step 2: sync from cloud
+  await syncFromCloud();
+}
+
+async function syncFromCloud() {
+  const apiUrl = getSheetsApiUrl();
+  if (!apiUrl || isSyncing) { updateSyncStatus('未設定同步'); return; }
+  isSyncing = true;
+  updateSyncStatus('同步中...');
+  
+  try {
+    const res = await fetch(apiUrl + '?action=list');
+    const data = await res.json();
+    if (data.students) {
+      // Convert cloud data: ensure all fields are strings/proper types
+      students = data.students.map(s => ({
+        id: String(s.id || ''),
+        name: String(s.name || ''),
+        uid: String(s.uid || ''),
+        phone: String(s.phone || ''),
+        loginType: String(s.loginType || ''),
+        lineId: String(s.lineId || ''),
+        need: String(s.need || ''),
+        teacherName: String(s.teacherName || ''),
+        teacherUrl: String(s.teacherUrl || ''),
+        classTime: String(s.classTime || ''),
+        status: String(s.status || 'new'),
+        createdAt: String(s.createdAt || '')
+      })).filter(s => s.id); // remove empty rows
+      
+      // Update local cache
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(students));
+      lastSyncTime = new Date();
+      updateSyncStatus('已同步 ' + lastSyncTime.toLocaleTimeString('zh-TW', {hour:'2-digit', minute:'2-digit'}));
+      render();
+    }
+  } catch (e) {
+    console.error('Sync failed:', e);
+    updateSyncStatus('同步失敗，使用本地資料');
+  } finally {
+    isSyncing = false;
+  }
+}
+
+async function save() {
+  // Save to local first (instant)
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(students));
+  
+  // Sync to cloud
+  const apiUrl = getSheetsApiUrl();
+  if (!apiUrl) { updateSyncStatus('未設定同步'); return; }
+  isSyncing = true;
+  updateSyncStatus('儲存中...');
+  
+  try {
+    const res = await fetch(apiUrl, {
+      method: 'POST',
+      mode: 'no-cors', // Apps Script requires no-cors for POST
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'save', students: students })
+    });
+    lastSyncTime = new Date();
+    updateSyncStatus('已儲存 ' + lastSyncTime.toLocaleTimeString('zh-TW', {hour:'2-digit', minute:'2-digit'}));
+  } catch (e) {
+    console.error('Save failed:', e);
+    updateSyncStatus('儲存失敗（本地已保存）');
+  } finally {
+    isSyncing = false;
+  }
+}
+
+function updateSyncStatus(msg) {
+  const el = document.getElementById('syncStatus');
+  if (el) el.textContent = msg;
+}
+
+// === Utils ===
+function uid() { return 's_' + Date.now() + '_' + Math.random().toString(36).slice(2,7); }
+function fmt(dt) {
+  if (!dt) return '';
+  const d = new Date(dt);
+  return d.toLocaleString('zh-TW', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:false });
+}
+
+function dateInputValue(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+function sameDateByInput(d, inputValue) {
+  return dateInputValue(new Date(d)) === inputValue;
+}
+function fmtTime(dt) {
+  const d = new Date(dt);
+  return d.toLocaleTimeString('zh-TW', { hour:'2-digit', minute:'2-digit', hour12:false });
+}
+function statusName(s) {
+  return {new:'新名單',contacted:'已聯繫',booked:'已約課',done:'體驗完成',log:'已 log',converted:'體轉正',lost:'流失'}[s] || s;
+}
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+// === Views ===
+function switchView(v) {
+  if (v === 'pomodoro' && !appSettings.pomodoroEnabled) v = 'settings';
+  currentView = v;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.view === v));
+  document.getElementById('tasksView').style.display = v === 'tasks' ? 'block' : 'none';
+  document.getElementById('listView').style.display = v === 'list' ? 'block' : 'none';
+  document.getElementById('templatesView').style.display = v === 'templates' ? 'block' : 'none';
+  document.getElementById('pomodoroView').style.display = v === 'pomodoro' ? 'block' : 'none';
+  const settingsView = document.getElementById('settingsView');
+  if (settingsView) settingsView.style.display = v === 'settings' ? 'block' : 'none';
+  // Hide FAB on pomodoro view
+  document.querySelector('.fab').style.display = (v === 'pomodoro' || v === 'settings') ? 'none' : 'block';
+  render();
+}
+
+// === Stats & Alerts ===
+function updateStats() {
+  document.getElementById('statTotal').textContent = students.length;
+  document.getElementById('statBooked').textContent = students.filter(s => s.status === 'booked').length;
+  document.getElementById('statPending').textContent = getPendingTasks().length;
+  document.getElementById('statConverted').textContent = students.filter(s => s.status === 'converted').length;
+
+  const taskCount = getPendingTasks().filter(t => t.urgent || t.dueSoon).length;
+  const badge = document.getElementById('taskBadge');
+  if (taskCount > 0) {
+    badge.textContent = taskCount;
+    badge.style.display = 'inline-block';
+  } else badge.style.display = 'none';
+
+  const urgent = getPendingTasks().filter(t => t.urgent).length;
+  const alertBar = document.getElementById('alertBar');
+  if (urgent > 0) {
+    alertBar.innerHTML = `⏰ <strong>${urgent} 件待辦已逾期或快到期</strong>，請優先處理`;
+    alertBar.classList.add('show');
+  } else alertBar.classList.remove('show');
+}
+
+// === Tasks ===
+function buildReminderTasks() {
+  const tasks = [];
+
+  students.forEach(s => {
+    if (!s.classTime) return;
+    const ct = new Date(s.classTime);
+
+    const pushTask = (type, action, offsetMin, options = {}) => {
+      const reminderAt = new Date(ct.getTime() + offsetMin * 60000);
+      tasks.push({
+        student: s,
+        type,
+        action,
+        time: ct,
+        reminderAt,
+        sortKey: reminderAt.getTime(),
+        urgent: !!options.urgent,
+        dueSoon: !!options.dueSoon,
+        calendarOffsetMin: offsetMin,
+        calendarDur: options.dur || 10
+      });
+    };
+
+    if (s.status === 'booked') {
+      pushTask('課前一天提醒學員', '傳送上課前提醒訊息', -appSettings.preDayMin, { dur: 15 });
+      pushTask(`課前 ${appSettings.preClassMin} 分鐘自我提醒`, '注意 LINE 訊息，確認學員可順利進教室', -appSettings.preClassMin, { dur: 5 });
+      pushTask(`課後 ${appSettings.postCareMin} 分鐘關懷`, '傳送關懷訊息', appSettings.postCareMin, { dur: 10 });
+    }
+
+    if (s.status === 'done') {
+      pushTask(`課後 ${appSettings.postCareMin} 分鐘關懷`, '傳送關懷訊息', appSettings.postCareMin, { dur: 10 });
+      pushTask('24H Log 跟進', '完成業務系統紀錄', appSettings.logHours * 60, { dur: 30 });
+    }
+
+    if (s.status === 'contacted') {
+      pushTask('24H Log 跟進', '完成業務系統紀錄', appSettings.logHours * 60, { dur: 30 });
+    }
+  });
+
+  return tasks.sort((a, b) => a.sortKey - b.sortKey);
+}
+
+function decorateTaskTiming(tasks) {
+  const now = new Date();
+  return tasks.map(t => ({
+    ...t,
+    overdue: t.reminderAt <= now,
+    urgent: t.reminderAt <= now,
+    dueSoon: t.reminderAt > now && (t.reminderAt - now) <= 60 * 60000
+  })).sort((a,b) => a.sortKey - b.sortKey);
+}
+
+function getPendingTasks() {
+  const now = new Date();
+  const tasks = buildReminderTasks().filter(t => {
+    const diffMin = (t.reminderAt - now) / 60000;
+    const afterMin = -diffMin;
+
+    if (t.type.includes('課前一天')) return diffMin <= 360 && afterMin <= 360;
+    if (t.type.includes('自我提醒')) return diffMin <= appSettings.preClassMin && afterMin <= 30;
+    if (t.type.includes('關懷')) return diffMin <= appSettings.postCareMin && afterMin <= 90;
+    if (t.type.includes('Log')) return diffMin <= 60 && afterMin <= 180;
+    return false;
+  });
+  return decorateTaskTiming(tasks);
+}
+
+function getTasksForSelectedDate() {
+  if (!selectedTaskDate) selectedTaskDate = dateInputValue(new Date());
+  return decorateTaskTiming(buildReminderTasks().filter(t => sameDateByInput(t.reminderAt, selectedTaskDate)));
+}
+
+function renderTasks() {
+  const list = document.getElementById('tasksList');
+  const tasks = taskViewMode === 'date' ? getTasksForSelectedDate() : getPendingTasks();
+  updateTaskDateControls();
+  if (tasks.length === 0) {
+    const emptyText = taskViewMode === 'date' ? '這一天沒有待辦事項' : '目前沒有即時待辦事項';
+    list.innerHTML = `<div class="empty"><div class="empty-icon">✓</div>${emptyText}<br><span style="font-size:11px;opacity:0.7">新增學員並設定體驗課時間後，會在這裡顯示提醒</span></div>`;
+    return;
+  }
+  list.innerHTML = tasks.map(t => {
+    const cls = t.urgent ? 'urgent' : (t.dueSoon ? 'due-soon' : '');
+    const timeCls = t.urgent ? 'urgent' : '';
+    const now = new Date();
+    let timeStr;
+    if (taskViewMode === 'date') {
+      timeStr = `${t.overdue ? '已逾期｜' : ''}提醒 ${fmtTime(t.reminderAt)}｜課程 ${fmt(t.time)}`;
+    } else {
+      const diff = (t.reminderAt - now) / (1000 * 60);
+      if (diff > 0) {
+        if (diff < 60) timeStr = `${Math.round(diff)} 分鐘後提醒`;
+        else if (diff < 60*24) timeStr = `${Math.round(diff/60)} 小時後提醒`;
+        else timeStr = `${fmt(t.reminderAt)} 提醒`;
+      } else {
+        const after = -diff;
+        if (after < 60) timeStr = `已逾期 ${Math.round(after)} 分鐘`;
+        else timeStr = `已逾期 ${Math.round(after/60)} 小時`;
+      }
+    }
+    return `
+      <div class="task-card ${cls}">
+        <div class="task-name">${t.student.name} <span style="font-size:11px;color:#888;font-weight:normal">[${t.type}]</span>${t.overdue ? '<span class="task-overdue-badge">已逾期</span>' : ''}</div>
+        <div class="task-action">${t.action}</div>
+        <div class="task-time ${timeCls}">${timeStr}</div>
+        <div class="task-buttons">
+          ${t.type.includes('學員') || t.type.includes('關懷') || t.type.includes('自我提醒') ? `<button class="btn btn-line" onclick="copyTemplate('${t.student.id}','${t.type}')">複製訊息</button>` : ''}
+          ${t.type.includes('Log') ? `<button class="btn btn-primary" onclick="markLogDone('${t.student.id}')">標記已 log</button>` : ''}
+          <button class="btn btn-edit" onclick="editStudent('${t.student.id}')">編輯</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function setTaskDateToday() {
+  taskViewMode = 'date';
+  selectedTaskDate = dateInputValue(new Date());
+  const el = document.getElementById('taskDateInput');
+  if (el) el.value = selectedTaskDate;
+  renderTasks();
+}
+function setTaskDateTomorrow() {
+  taskViewMode = 'date';
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  selectedTaskDate = dateInputValue(d);
+  const el = document.getElementById('taskDateInput');
+  if (el) el.value = selectedTaskDate;
+  renderTasks();
+}
+function setTaskRealtime() {
+  taskViewMode = 'realtime';
+  renderTasks();
+}
+function updateTaskDateControls() {
+  const input = document.getElementById('taskDateInput');
+  const hint = document.getElementById('taskDateHint');
+  const todayBtn = document.getElementById('taskTodayBtn');
+  const realtimeBtn = document.getElementById('taskRealtimeBtn');
+  if (!input || !hint) return;
+  if (!selectedTaskDate) selectedTaskDate = dateInputValue(new Date());
+  if (input.value !== selectedTaskDate) input.value = selectedTaskDate;
+  const today = dateInputValue(new Date());
+  const tasks = taskViewMode === 'date' ? getTasksForSelectedDate() : getPendingTasks();
+  hint.textContent = taskViewMode === 'date'
+    ? `正在查看 ${selectedTaskDate} 的待辦，共 ${tasks.length} 件`
+    : `正在查看目前需要處理的即時待辦，共 ${tasks.length} 件`;
+  if (todayBtn) todayBtn.classList.toggle('active', taskViewMode === 'date' && selectedTaskDate === today);
+  if (realtimeBtn) realtimeBtn.classList.toggle('active', taskViewMode === 'realtime');
+}
+
+function markLogDone(id) {
+  const s = students.find(x => x.id === id);
+  if (s) {
+    s.status = 'log';
+    save();
+    render();
+    showToast('已標記為 24H log 完成');
+  }
+}
+
+// === Student List ===
+function renderList() {
+  const search = document.getElementById('searchBox').value.toLowerCase().trim();
+  let filtered = students.filter(s => {
+    if (currentFilter !== 'all' && s.status !== currentFilter) return false;
+    if (!search) return true;
+    return (s.name || '').toLowerCase().includes(search)
+        || (s.uid || '').toLowerCase().includes(search)
+        || (s.phone || '').includes(search)
+        || (s.lineId || '').toLowerCase().includes(search);
+  });
+  filtered.sort((a,b) => (b.classTime || b.createdAt || '').localeCompare(a.classTime || a.createdAt || ''));
+
+  const list = document.getElementById('studentList');
+  if (filtered.length === 0) {
+    list.innerHTML = '<div class="empty"><div class="empty-icon">📋</div>沒有符合的學員</div>';
+    return;
+  }
+  list.innerHTML = filtered.map(s => `
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-name">${s.name}</div>
+          ${s.uid ? `<div class="card-uid">UID: ${s.uid}</div>` : ''}
+        </div>
+        <div class="status s-${s.status}">${statusName(s.status)}</div>
+      </div>
+      <div class="card-info">
+        ${s.phone ? `<span class="label">📱</span>${s.phone} ` : ''}
+        ${s.lineId ? `<span class="label">LINE</span>${s.lineId} ` : ''}
+        ${s.loginType ? `<span class="label">登入</span>${s.loginType}` : ''}
+      </div>
+      ${s.need ? `<div class="card-need">📝 ${s.need}</div>` : ''}
+      ${s.classTime ? `<div class="card-time">⏰ 體驗課：${fmt(s.classTime)}</div>` : ''}
+      <div class="actions">
+        ${s.phone ? `<button class="btn btn-call" onclick="callViaEzuc('${s.phone}')">📞 EZUC+</button>` : ''}
+        ${s.classTime ? `<button class="btn btn-cal" onclick="addToCalendar('${s.id}')">加日曆</button>` : ''}
+        ${s.lineId || s.phone ? `<button class="btn btn-line" onclick="copyForStudent('${s.id}')">複製訊息</button>` : ''}
+        ${s.teacherUrl ? `<button class="btn btn-second" onclick="openTeacher('${s.id}')">老師頁</button>` : ''}
+        <button class="btn btn-edit" onclick="editStudent('${s.id}')">編輯</button>
+        <button class="btn btn-del" onclick="deleteStudent('${s.id}')">刪除</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+// === Templates ===
+function renderTemplates() {
+  const list = document.getElementById('templateList');
+  list.innerHTML = TEMPLATES.map((t, i) => `
+    <div class="template-item" onclick="copyTemplateByIndex(${i})">
+      <div class="template-label">${t.label}</div>
+      <div class="template-text">${applyTemplateFields(t.text, {}, t.label)}</div>
+    </div>
+  `).join('');
+}
+
+function copyText(text) {
+  navigator.clipboard.writeText(text).then(() => showToast('已複製到剪貼簿'));
+}
+
+function copyTemplate(studentId, type) {
+  const s = students.find(x => x.id === studentId);
+  if (!s) return;
+  let tpl;
+  if (type.includes('課前一天提醒') || type.includes('預約確認') || type.includes('24h 提醒學員')) {
+    tpl = TEMPLATES.find(t => t.label.includes('完整提醒')) || TEMPLATES.find(t => t.label.includes('預約確認'));
+  } else if (type.includes('課前 30') || type.includes('30 分鐘自我提醒')) {
+    tpl = TEMPLATES.find(t => t.label.includes('30 分鐘自我提醒'));
+  } else if (type.includes('30 分鐘關懷') || type.includes('1 小時關懷')) {
+    tpl = TEMPLATES.find(t => t.label.includes('30 分鐘關懷') || t.label.includes('關懷'));
+  } else {
+    tpl = TEMPLATES.find(t => t.label.includes('24 小時跟進'));
+  }
+  if (!tpl) tpl = TEMPLATES[0];
+  let text = applyTemplateFields(tpl.text, s, tpl.label);
+  copyText(text);
+}
+
+function copyForStudent(studentId) {
+  const s = students.find(x => x.id === studentId);
+  if (!s) return;
+  // pick template based on status
+  let tpl;
+  if (s.status === 'booked') tpl = TEMPLATES.find(t => t.label.includes('預約確認'));
+  else if (s.status === 'done') tpl = TEMPLATES.find(t => t.label.includes('關懷'));
+  else tpl = TEMPLATES.find(t => t.label.includes('24 小時跟進'));
+  if (!tpl) tpl = TEMPLATES[0];
+  let text = applyTemplateFields(tpl.text, s, tpl.label);
+  copyText(text);
+}
+
+function openTeacher(id) {
+  const s = students.find(x => x.id === id);
+  if (s && s.teacherUrl) window.open(s.teacherUrl, '_blank');
+}
+
+function callStudent(phone) {
+  if (!phone) return;
+  window.location.href = 'tel:' + phone.replace(/[^0-9+]/g, '');
+}
+
+function callViaEzuc(phone) {
+  if (!phone) return;
+  const cleanPhone = phone.replace(/[^0-9+]/g, '');
+  
+  // Step 1: copy phone number
+  const copyText = (text) => {
+    if (navigator.clipboard) {
+      return navigator.clipboard.writeText(text);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      return Promise.resolve();
+    }
+  };
+  
+  copyText(cleanPhone).finally(() => {
+    showToast('號碼已複製，正在開啟 EZUC+');
+    
+    // Step 2: try to open EZUC+ via multiple methods
+    setTimeout(() => {
+      // Method: Android intent URL pointing to the package's main launcher
+      // Use the standard intent format that Chrome on Android handles
+      const intentUrl = 'intent://launch#Intent;' +
+        'scheme=app;' +
+        'package=com.blisscloud.mobile.ezuc;' +
+        'action=android.intent.action.MAIN;' +
+        'category=android.intent.category.LAUNCHER;' +
+        'end';
+      
+      window.location.href = intentUrl;
+    }, 400);
+  });
+}
+
+// === Calendar ===
+function buildCalendarEvents(s) {
+  const ct = new Date(s.classTime);
+  const detailExtra = (s.phone ? `\n手機: ${s.phone}` : '')
+    + (s.lineId ? `\nLINE: ${s.lineId}` : '')
+    + (s.teacherName ? `\n老師: ${s.teacherName}` : '')
+    + (s.teacherUrl ? `\n老師連結: ${s.teacherUrl}` : '');
+
+  return [
+    { offsetMin: -appSettings.preDayMin, dur: 15, title: `[課前一天] 提醒 ${s.name} 上課`, desc: '傳送課前提醒訊息（含上課流程、登入方式、優惠資訊）' },
+    { offsetMin: -appSettings.preClassMin, dur: 5, title: `⚠️ [課前${appSettings.preClassMin}分] ${s.name} 即將上課`, desc: '注意 LINE 訊息，確認學員可以順利進教室。' },
+    { offsetMin: appSettings.postCareMin, dur: 10, title: `[課後${appSettings.postCareMin}分關懷] ${s.name}`, desc: '傳送關懷訊息，確認體驗課狀況與老師適配度。' },
+    { offsetMin: appSettings.logHours * 60, dur: 30, title: `[${appSettings.logHours}H Log] ${s.name}`, desc: '完成業務系統紀錄與課後跟進。' },
+  ].map(e => {
+    const start = new Date(ct.getTime() + e.offsetMin * 60000);
+    const end = new Date(start.getTime() + e.dur * 60000);
+    return {
+      title: e.title,
+      start: start.toISOString(),
+      end: end.toISOString(),
+      desc: e.desc + detailExtra
+    };
+  });
+}
+
+function toBase64UrlUnicode(str) {
+  const bytes = new TextEncoder().encode(str);
+  let binary = '';
+  bytes.forEach(b => binary += String.fromCharCode(b));
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function addToCalendar(id) {
+  const s = students.find(x => x.id === id);
+  if (!s || !s.classTime) {
+    showToast('請先設定體驗課時間');
+    return;
+  }
+
+  const syncUrl = getSheetsApiUrl();
+
+  if (syncUrl) {
+    const sep = syncUrl.includes('?') ? '&' : '?';
+    const params = new URLSearchParams({
+      action: 'addCalendarEventsSimple',
+      name: s.name || '',
+      classTime: s.classTime || '',
+      phone: s.phone || '',
+      lineId: s.lineId || '',
+      teacherName: s.teacherName || ''
+    });
+    const url = `${syncUrl}${sep}${params.toString()}`;
+
+    const opened = window.open(url, '_blank');
+    if (opened) {
+      showToast('已開啟 Google 日曆建立頁，請查看結果');
+      return;
+    }
+
+    if (!confirm('瀏覽器擋住彈出視窗，是否改下載 .ics 日曆檔？')) return;
+  } else {
+    if (!confirm('尚未設定 Apps Script URL，無法自動加入 Google 日曆。要先下載 .ics 日曆檔嗎？')) return;
+  }
+
+  downloadCalendarICS(s, buildCalendarEvents(s));
+}
+
+function downloadCalendarICS(s, events) {
+  const pad = n => String(n).padStart(2, '0');
+  const icsDate = d => {
+    const z = new Date(d);
+    return z.getUTCFullYear() + pad(z.getUTCMonth()+1) + pad(z.getUTCDate()) + 'T' + pad(z.getUTCHours()) + pad(z.getUTCMinutes()) + pad(z.getUTCSeconds()) + 'Z';
+  };
+  const esc = str => String(str || '')
+    .replace(/\\/g, '\\\\')
+    .replace(/\n/g, '\\n')
+    .replace(/,/g, '\\,')
+    .replace(/;/g, '\\;');
+  const stamp = icsDate(new Date());
+
+  const vevents = events.map((e, idx) => {
+    const start = new Date(e.start);
+    const end = new Date(e.end);
+    return [
+      'BEGIN:VEVENT',
+      `UID:${s.id || uid()}-${idx}@hana-at-manager`,
+      `DTSTAMP:${stamp}`,
+      `DTSTART:${icsDate(start)}`,
+      `DTEND:${icsDate(end)}`,
+      `SUMMARY:${esc(e.title)}`,
+      `DESCRIPTION:${esc(e.desc)}`,
+      'BEGIN:VALARM',
+      'TRIGGER:-PT5M',
+      'ACTION:DISPLAY',
+      `DESCRIPTION:${esc(e.title)}`,
+      'END:VALARM',
+      'END:VEVENT'
+    ].join('\r\n');
+  }).join('\r\n');
+
+  const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Hana//AT Manager//ZH-TW', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', vevents, 'END:VCALENDAR'].join('\r\n');
+  const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const safeName = (s.name || 'student').replace(/[\\/:*?"<>|\s]+/g, '_');
+  a.href = url;
+  a.download = `AT_${safeName}_reminders.ics`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('已下載日曆檔，內含 4 個提醒事件');
+}
+
+// === CRUD ===
+document.getElementById('addBtn').onclick = () => openModal();
+
+function openModal(id) {
+  editingId = id || null;
+  document.getElementById('modalTitle').textContent = id ? '編輯學員' : '新增學員';
+  if (id) {
+    const s = students.find(x => x.id === id);
+    document.getElementById('fName').value = s.name || '';
+    document.getElementById('fUid').value = s.uid || '';
+    document.getElementById('fPhone').value = s.phone || '';
+    document.getElementById('fLogin').value = s.loginType || '';
+    document.getElementById('fLine').value = s.lineId || '';
+    document.getElementById('fNeed').value = s.need || '';
+    document.getElementById('fTeacherName').value = s.teacherName || '';
+    document.getElementById('fTeacher').value = s.teacherUrl || '';
+    document.getElementById('fClassTime').value = s.classTime || '';
+    document.getElementById('fStatus').value = s.status || 'new';
+  } else {
+    ['fName','fUid','fPhone','fLine','fNeed','fTeacherName','fTeacher','fClassTime'].forEach(i => document.getElementById(i).value = '');
+    document.getElementById('fLogin').value = '';
+    document.getElementById('fStatus').value = 'new';
+  }
+  document.getElementById('editModal').classList.add('show');
+}
+
+function closeModal() {
+  document.getElementById('editModal').classList.remove('show');
+  editingId = null;
+}
+
+function saveStudent() {
+  const name = document.getElementById('fName').value.trim();
+  if (!name) { alert('請輸入姓名'); return; }
+
+  const data = {
+    name,
+    uid: document.getElementById('fUid').value.trim(),
+    phone: document.getElementById('fPhone').value.trim(),
+    loginType: document.getElementById('fLogin').value,
+    lineId: document.getElementById('fLine').value.trim(),
+    need: document.getElementById('fNeed').value.trim(),
+    teacherName: document.getElementById('fTeacherName').value.trim(),
+    teacherUrl: document.getElementById('fTeacher').value.trim(),
+    classTime: document.getElementById('fClassTime').value,
+    status: document.getElementById('fStatus').value
+  };
+
+  if (editingId) {
+    const idx = students.findIndex(x => x.id === editingId);
+    students[idx] = { ...students[idx], ...data };
+  } else {
+    students.push({ id: uid(), createdAt: new Date().toISOString(), ...data });
+  }
+  save();
+  closeModal();
+  render();
+  showToast(editingId ? '已更新' : '已新增');
+}
+
+function editStudent(id) { openModal(id); }
+function deleteStudent(id) {
+  const s = students.find(x => x.id === id);
+  if (!s) return;
+  if (confirm(`確定刪除 ${s.name}？`)) {
+    students = students.filter(x => x.id !== id);
+    save();
+    render();
+    showToast('已刪除');
+  }
+}
+
+// === Import / Export ===
+function exportData() {
+  const blob = new Blob([JSON.stringify(students, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `at_students_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('已匯出');
+}
+
+function importData(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (!Array.isArray(data)) throw new Error('格式錯誤');
+      if (confirm(`匯入 ${data.length} 筆資料？將覆蓋現有資料`)) {
+        students = data;
+        save();
+        render();
+        showToast('已匯入');
+      }
+    } catch (err) { alert('匯入失敗：' + err.message); }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+// === Init ===
+function render() {
+  updateStats();
+  if (currentView === 'tasks') renderTasks();
+  else if (currentView === 'list') renderList();
+  else if (currentView === 'templates') renderTemplates();
+  else if (currentView === 'pomodoro') pomoUpdateDisplay();
+  else if (currentView === 'settings') renderSettings();
+}
+
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => switchView(t.dataset.view));
+document.querySelectorAll('.filter-chip').forEach(c => c.onclick = () => {
+  document.querySelectorAll('.filter-chip').forEach(x => x.classList.remove('active'));
+  c.classList.add('active');
+  currentFilter = c.dataset.filter;
+  renderList();
+});
+document.getElementById('searchBox').oninput = renderList;
+const brandColorInput = document.getElementById('setBrandColor');
+const brandColorText = document.getElementById('setBrandColorText');
+if (brandColorInput && brandColorText) {
+  brandColorInput.oninput = () => { brandColorText.value = brandColorInput.value; };
+  brandColorText.onchange = () => { if (/^#[0-9a-fA-F]{6}$/.test(brandColorText.value)) brandColorInput.value = brandColorText.value; };
+}
+selectedTaskDate = dateInputValue(new Date());
+const taskDateInput = document.getElementById('taskDateInput');
+if (taskDateInput) {
+  taskDateInput.value = selectedTaskDate;
+  taskDateInput.onchange = () => {
+    taskViewMode = 'date';
+    selectedTaskDate = taskDateInput.value || dateInputValue(new Date());
+    renderTasks();
+  };
+}
+
+// Today date
+const today = new Date();
+document.getElementById('todayDate').textContent = today.toLocaleDateString('zh-TW', { year:'numeric', month:'long', day:'numeric', weekday:'long' });
+
+load();
+if (!localStorage.getItem(SETTINGS_KEY)) { setTimeout(() => switchView('settings'), 350); }
+
+// Refresh tasks every minute
+setInterval(() => { if (currentView === 'tasks') render(); else updateStats(); }, 60000);
+
+// Auto-sync from cloud every 2 minutes (when app is in focus)
+setInterval(() => {
+  if (!document.hidden) syncFromCloud();
+}, 120000);
+
+// Sync when app becomes visible (returning to tab)
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) syncFromCloud();
+});
+
+// === Pomodoro ===
+let pomoConfig = { work: 25 * 60, rest: 5 * 60 };
+let pomoState = 'idle'; // idle / working / resting / paused
+let pomoRemaining = pomoConfig.work;
+let pomoInterval = null;
+let pomoCount = parseInt(localStorage.getItem('pomo_count_' + new Date().toDateString()) || '0', 10);
+const CAT_IMAGES = { idle: 'cat_idle.png', working: 'cat_working.png', resting: 'cat_resting.png', paused: 'cat_idle.png' };
+
+function pomoReadConfig() {
+  const w = parseInt(document.getElementById('pomoWork').value, 10) || 25;
+  const r = parseInt(document.getElementById('pomoRest').value, 10) || 5;
+  pomoConfig.work = Math.max(1, Math.min(120, w)) * 60;
+  pomoConfig.rest = Math.max(1, Math.min(60, r)) * 60;
+}
+
+function pomoInit() {
+  // Load saved config from localStorage if available
+  const savedW = localStorage.getItem('pomo_work_min');
+  const savedR = localStorage.getItem('pomo_rest_min');
+  if (savedW) document.getElementById('pomoWork').value = savedW;
+  if (savedR) document.getElementById('pomoRest').value = savedR;
+  pomoReadConfig();
+  
+  // Save config when changed
+  document.getElementById('pomoWork').addEventListener('change', () => {
+    if (pomoState !== 'idle') {
+      if (!confirm('修改時間會重置目前計時，確定要修改嗎？')) {
+        document.getElementById('pomoWork').value = pomoConfig.work / 60;
+        return;
+      }
+      pomoReset();
+    }
+    pomoReadConfig();
+    localStorage.setItem('pomo_work_min', document.getElementById('pomoWork').value);
+    pomoRemaining = pomoConfig.work;
+    pomoUpdateDisplay();
+  });
+  document.getElementById('pomoRest').addEventListener('change', () => {
+    pomoReadConfig();
+    localStorage.setItem('pomo_rest_min', document.getElementById('pomoRest').value);
+    if (pomoState === 'idle') pomoUpdateDisplay();
+  });
+  
+  pomoRemaining = pomoConfig.work;
+  pomoUpdateDisplay();
+  pomoUpdateCount();
+  catSetState('idle');
+}
+
+function pomoToggle() {
+  if (pomoState === 'idle' || pomoState === 'paused') {
+    pomoStart();
+  } else {
+    pomoPause();
+  }
+}
+
+function pomoStart() {
+  if (pomoState === 'idle') {
+    pomoState = 'working';
+    document.getElementById('pomoStatus').textContent = '工作中';
+    catSetState('working');
+  } else if (pomoState === 'paused') {
+    pomoState = pomoState_before_pause || 'working';
+  }
+  document.getElementById('pomoStart').textContent = '暫停';
+  if (pomoState === 'working') catSetState('working');
+  if (pomoState === 'resting') catSetState('resting');
+  pomoInterval = setInterval(pomoTick, 1000);
+}
+
+let pomoState_before_pause = null;
+function pomoPause() {
+  pomoState_before_pause = pomoState;
+  pomoState = 'paused';
+  clearInterval(pomoInterval);
+  document.getElementById('pomoStart').textContent = '繼續';
+  document.getElementById('pomoStatus').textContent = '已暫停';
+  catSetState('paused');
+}
+
+function pomoReset() {
+  clearInterval(pomoInterval);
+  pomoState = 'idle';
+  pomoRemaining = pomoConfig.work;
+  document.getElementById('pomoStart').textContent = '開始';
+  document.getElementById('pomoStatus').textContent = '準備工作';
+  catSetState('idle');
+  pomoUpdateDisplay();
+}
+
+function pomoTick() {
+  pomoRemaining--;
+  pomoUpdateDisplay();
+  if (pomoRemaining <= 0) {
+    clearInterval(pomoInterval);
+    pomoComplete();
+  }
+}
+
+function pomoComplete() {
+  // Notification & sound
+  try {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      const isWork = pomoState === 'working';
+      new Notification(isWork ? '🎉 完成一個番茄鐘！' : '☕ 休息結束', {
+        body: isWork ? '休息一下吧～' : '回去工作！加油！',
+        icon: '🍅'
+      });
+    }
+  } catch (e) {}
+  
+  // Vibrate
+  if ('vibrate' in navigator) navigator.vibrate([200, 100, 200]);
+  
+  // Beep sound
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 800;
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.5);
+  } catch (e) {}
+  
+  if (pomoState === 'working') {
+    // Work done -> rest
+    pomoCount++;
+    localStorage.setItem('pomo_count_' + new Date().toDateString(), pomoCount);
+    pomoUpdateCount();
+    pomoState = 'resting';
+    pomoRemaining = pomoConfig.rest;
+    document.getElementById('pomoStatus').textContent = '休息中 · 喝口水吧～';
+    catSetState('resting');
+    pomoUpdateDisplay();
+    pomoInterval = setInterval(pomoTick, 1000);
+  } else {
+    // Rest done -> idle
+    pomoState = 'idle';
+    pomoRemaining = pomoConfig.work;
+    document.getElementById('pomoStart').textContent = '開始';
+    document.getElementById('pomoStatus').textContent = '休息結束！繼續加油';
+    catSetState('idle');
+    pomoUpdateDisplay();
+  }
+}
+
+function pomoUpdateDisplay() {
+  const m = Math.floor(pomoRemaining / 60);
+  const s = pomoRemaining % 60;
+  document.getElementById('pomoTime').textContent = String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+  
+  const total = pomoState === 'resting' ? pomoConfig.rest : pomoConfig.work;
+  const pct = ((total - pomoRemaining) / total) * 100;
+  document.getElementById('pomoProgress').style.width = pct + '%';
+}
+
+function pomoUpdateCount() {
+  document.getElementById('pomoCount').textContent = pomoCount;
+}
+
+function catSetState(state) {
+  const cat = document.getElementById('pomoCat');
+  const catImg = document.getElementById('pomoCatImg');
+  if (!cat || !catImg) return;
+
+  const nextSrc = CAT_IMAGES[state] || CAT_IMAGES.idle;
+  cat.classList.remove('breathing', 'working', 'resting', 'paused');
+
+  if (state === 'working') {
+    cat.classList.add('breathing', 'working');
+  } else if (state === 'resting') {
+    cat.classList.add('breathing', 'resting');
+  } else if (state === 'paused') {
+    cat.classList.add('paused');
+  }
+
+  if (!catImg.src.endsWith(nextSrc)) {
+    catImg.style.opacity = '0.1';
+    setTimeout(() => {
+      catImg.src = nextSrc;
+      catImg.style.opacity = '1';
+    }, 120);
+  } else {
+    catImg.style.opacity = '1';
+  }
+}
+
+// Request notification permission on first pomodoro tab visit
+function pomoRequestPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+pomoInit();
+
+// Override switchView to request notification permission on first pomodoro visit
+const _origSwitchView = switchView;
+switchView = function(v) {
+  if (v === 'pomodoro') pomoRequestPermission();
+  _origSwitchView(v);
+};
+
+// === Web App / PWA install ===
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  const btn = document.getElementById('installBtn');
+  if (btn) btn.style.display = 'inline-block';
+});
+
+async function installApp() {
+  if (deferredInstallPrompt) {
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    const btn = document.getElementById('installBtn');
+    if (btn) btn.style.display = 'none';
+  } else {
+    alert('如果按鈕沒有跳出安裝視窗：\n\nAndroid Chrome：點右上角 ⋮ →「加入主畫面」\niPhone Safari：點分享 →「加入主畫面」');
+  }
+}
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(err => console.log('Service worker registration failed:', err));
+  });
+}
+
+</script>
+</body>
+</html>

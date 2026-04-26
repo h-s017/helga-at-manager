@@ -1,0 +1,14 @@
+{
+  "name": "AT 學員管理 | Hana",
+  "short_name": "AT管理",
+  "description": "AT 顧問個人版：學員名單、提醒、訊息範本、日曆與專注工具",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F4F1EB",
+  "theme_color": "#424A5A",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
