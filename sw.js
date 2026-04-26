@@ -1,4 +1,4 @@
-const CACHE_NAME = 'at-manager-hana-calendar-direct-v1';
+const CACHE_NAME = 'at-manager-hana-v-taskdone-nojump1';
 const APP_SHELL = [
   './',
   './index.html',

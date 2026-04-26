@@ -204,6 +204,7 @@ hr { border: none; border-top: 1px solid #E5DDC8; margin: 12px 0; }
     <button class="task-date-btn active" id="taskTodayBtn" onclick="setTaskDateToday()">今天</button>
     <button class="task-date-btn" onclick="setTaskDateTomorrow()">明天</button>
     <button class="task-date-btn" id="taskRealtimeBtn" onclick="setTaskRealtime()">即時待辦</button>
+    <button class="task-date-btn" onclick="clearCompletedTasks()">清除已完成紀錄</button>
   </div>
   <div class="task-date-hint" id="taskDateHint"></div>
   <div id="tasksList"></div>
@@ -412,6 +413,7 @@ hr { border: none; border-top: 1px solid #E5DDC8; margin: 12px 0; }
 <script>
 const STORAGE_KEY = 'at_students_v1';
 const SETTINGS_KEY = 'at_manager_settings_v1';
+const COMPLETED_TASKS_KEY = 'at_manager_completed_tasks_v1';
 let students = [];
 let currentView = 'tasks';
 let currentFilter = 'all';
@@ -432,6 +434,46 @@ const DEFAULT_SETTINGS = {
   pomodoroEnabled: true
 };
 let appSettings = loadAppSettings();
+let completedTaskKeys = loadCompletedTaskKeys();
+
+function loadCompletedTaskKeys() {
+  try {
+    const raw = localStorage.getItem(COMPLETED_TASKS_KEY);
+    return new Set(raw ? JSON.parse(raw) : []);
+  } catch (e) {
+    return new Set();
+  }
+}
+
+function saveCompletedTaskKeys() {
+  localStorage.setItem(COMPLETED_TASKS_KEY, JSON.stringify([...completedTaskKeys]));
+}
+
+function taskKey(student, type, reminderAt) {
+  const sid = student?.id || student?.uid || student?.name || 'unknown';
+  const iso = new Date(reminderAt).toISOString();
+  return `${sid}|${type}|${iso}`;
+}
+
+function escapeJsString(str) {
+  return String(str || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n').replace(/\r/g, '');
+}
+
+function completeTask(key) {
+  if (!key) return;
+  completedTaskKeys.add(key);
+  saveCompletedTaskKeys();
+  render();
+  showToast('已完成，待辦已移除');
+}
+
+function clearCompletedTasks() {
+  if (!confirm('確定要清除所有已完成待辦紀錄？清除後，符合時間條件的待辦可能會再次出現。')) return;
+  completedTaskKeys.clear();
+  saveCompletedTaskKeys();
+  render();
+  showToast('已清除完成紀錄');
+}
 
 function loadAppSettings() {
   try {
@@ -764,7 +806,9 @@ function buildReminderTasks() {
 
     const pushTask = (type, action, offsetMin, options = {}) => {
       const reminderAt = new Date(ct.getTime() + offsetMin * 60000);
+      const key = taskKey(s, type, reminderAt);
       tasks.push({
+        key,
         student: s,
         type,
         action,
@@ -794,7 +838,7 @@ function buildReminderTasks() {
     }
   });
 
-  return tasks.sort((a, b) => a.sortKey - b.sortKey);
+  return tasks.filter(t => !completedTaskKeys.has(t.key)).sort((a, b) => a.sortKey - b.sortKey);
 }
 
 function decorateTaskTiming(tasks) {
@@ -862,7 +906,7 @@ function renderTasks() {
         <div class="task-time ${timeCls}">${timeStr}</div>
         <div class="task-buttons">
           ${t.type.includes('學員') || t.type.includes('關懷') || t.type.includes('自我提醒') ? `<button class="btn btn-line" onclick="copyTemplate('${t.student.id}','${t.type}')">複製訊息</button>` : ''}
-          ${t.type.includes('Log') ? `<button class="btn btn-primary" onclick="markLogDone('${t.student.id}')">標記已 log</button>` : ''}
+          ${t.type.includes('Log') ? `<button class="btn btn-primary" onclick="markLogDone('${t.student.id}')">完成並標記已 log</button>` : `<button class="btn btn-primary" onclick="completeTask('${escapeJsString(t.key)}')">完成</button>`}
           <button class="btn btn-edit" onclick="editStudent('${t.student.id}')">編輯</button>
         </div>
       </div>
@@ -1112,13 +1156,29 @@ function addToCalendar(id) {
     });
     const url = `${syncUrl}${sep}${params.toString()}`;
 
-    const opened = window.open(url, '_blank');
-    if (opened) {
-      showToast('已開啟 Google 日曆建立頁，請查看結果');
-      return;
-    }
+    // 背景送出到 Apps Script，不另開結果頁。
+    // Apps Script 會負責建立日曆事件；若事件已存在或時間已過，會自動略過。
+    try {
+      const oldFrame = document.getElementById('calendarSilentFrame');
+      if (oldFrame) oldFrame.remove();
 
-    if (!confirm('瀏覽器擋住彈出視窗，是否改下載 .ics 日曆檔？')) return;
+      const iframe = document.createElement('iframe');
+      iframe.id = 'calendarSilentFrame';
+      iframe.style.display = 'none';
+      iframe.src = url;
+      document.body.appendChild(iframe);
+
+      setTimeout(() => {
+        const f = document.getElementById('calendarSilentFrame');
+        if (f) f.remove();
+      }, 12000);
+
+      showToast('已送出 Google 日曆建立請求，請稍後到日曆確認');
+      return;
+    } catch (e) {
+      console.error('Silent calendar add failed:', e);
+      if (!confirm('自動加入 Google 日曆失敗，是否改下載 .ics 日曆檔？')) return;
+    }
   } else {
     if (!confirm('尚未設定 Apps Script URL，無法自動加入 Google 日曆。要先下載 .ics 日曆檔嗎？')) return;
   }
