@@ -791,6 +791,20 @@ function studentRecordTimestamp(s) {
   return Number.isFinite(t) ? t : 0;
 }
 
+function studentRecordsEquivalent(a, b) {
+  const fields = ['id','name','uid','phone','loginType','lineId','need','teacherName','teacherUrl','classTime','status','createdAt','updatedAt'];
+  return fields.every(k => String((a && a[k]) || '') === String((b && b[k]) || ''));
+}
+
+function cloudHasSameOrNewerRecord(local, cloud) {
+  if (!local || !cloud) return false;
+  if (studentRecordsEquivalent(local, cloud)) return true;
+  const lt = studentRecordTimestamp(local);
+  const ct = studentRecordTimestamp(cloud);
+  if (ct && lt && ct >= lt && String(cloud.status || '') === String(local.status || '')) return true;
+  return false;
+}
+
 function dedupeStudentRecords(list, preferredIds = new Set()) {
   const byKey = new Map();
   (Array.isArray(list) ? list : [])
@@ -901,7 +915,13 @@ async function syncFromCloud() {
       // Merge rule: cloud can update existing records, but it must never erase local-only records.
       // This fixes the case where a new lead appears locally, then disappears after copy/refresh because cloud is delayed.
       let merged = cloudStudents.map(cloud => {
-        if (dirtyIds.has(cloud.id) && localMap.has(cloud.id)) return localMap.get(cloud.id);
+        const local = localMap.get(cloud.id);
+        // If local was recently edited or is newer than cloud, keep local. This prevents
+        // Google Sheet's slightly delayed / older row from replacing a just-saved lead.
+        if (local) {
+          const localNewer = studentRecordTimestamp(local) > studentRecordTimestamp(cloud);
+          if (dirtyIds.has(cloud.id) || localNewer) return local;
+        }
         return cloud;
       });
 
@@ -917,8 +937,13 @@ async function syncFromCloud() {
       merged.forEach(s => mergedMap.set(s.id, s));
       students = dedupeStudentRecords([...mergedMap.values()], dirtyIds);
 
-      // Clear dirty flag only when cloud already contains that record id.
-      dirtyIds.forEach(id => { if (cloudMap.has(id)) clearStudentDirty(id); });
+      // Clear dirty flag only when the cloud row matches the local row (or is newer).
+      // Do NOT clear merely because cloud has the same id; that can be an older copy.
+      dirtyIds.forEach(id => {
+        const local = localMap.get(id);
+        const cloud = cloudMap.get(id);
+        if (cloudHasSameOrNewerRecord(local, cloud)) clearStudentDirty(id);
+      });
 
       saveLocalStudents();
       lastSyncTime = new Date();
@@ -969,7 +994,12 @@ async function save() {
   // Save to local first (instant). This prevents refresh from losing a newly added lead.
   saveLocalStudents();
   localStorage.setItem(LAST_LOCAL_SAVE_KEY, String(Date.now()));
-  await pushToCloud();
+  if (isSyncing) {
+    updateSyncStatus('本機已保存，稍後同步...');
+    setTimeout(() => pushToCloud(), 1500);
+  } else {
+    pushToCloud();
+  }
 }
 
 function updateSyncStatus(msg) {
