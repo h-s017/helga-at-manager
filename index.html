@@ -184,6 +184,17 @@ body, input, select, textarea, button { font-size: var(--app-font-size, 16px); }
 a { color: #4A86E8; }
 hr { border: none; border-top: 1px solid #E5DDC8; margin: 12px 0; }
 </style>
+
+<script>
+// 強制清掉舊版快取，避免舊 service worker 把舊畫面蓋回來
+(function(){
+  const APP_BUILD = 'waitcontact-cat-20260427-01';
+  window.AT_APP_BUILD = APP_BUILD;
+  if ('caches' in window) {
+    caches.keys().then(keys => Promise.all(keys.map(k => k.includes('at-manager') && !k.includes(APP_BUILD) ? caches.delete(k) : Promise.resolve()))).catch(()=>{});
+  }
+})();
+</script>
 </head>
 <body>
 
@@ -191,7 +202,7 @@ hr { border: none; border-top: 1px solid #E5DDC8; margin: 12px 0; }
   <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px">
     <div>
       <h1>AT 學員管理</h1>
-      <div class="sub" id="todayDate"></div>
+      <div class="sub" id="todayDate"></div><div class="sub" style="font-size:10px; opacity:.45; margin-top:2px">v waitcontact-cat</div>
     </div>
     <div style="text-align:right">
       <div id="syncStatus" style="font-size:11px; opacity:0.7; margin-bottom:4px">準備中...</div>
