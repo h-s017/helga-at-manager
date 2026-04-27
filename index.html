@@ -254,6 +254,14 @@ hr { border: none; border-top: 1px solid #E5DDC8; margin: 12px 0; }
 <div id="templatesView" style="display:none">
   <div class="section-title">點擊複製訊息範本</div>
   <div id="templateList"></div>
+  <div class="actions" style="margin:12px 0 4px">
+    <button class="btn btn-primary" onclick="openTemplateModal()">＋ 新增範本</button>
+    <button class="btn btn-second" onclick="exportTemplates()">匯出範本</button>
+    <button class="btn btn-second" onclick="document.getElementById('templateImportFile').click()">匯入範本</button>
+    <button class="btn btn-del" onclick="resetTemplates()">恢復預設範本</button>
+    <input type="file" id="templateImportFile" accept=".json" style="display:none" onchange="importTemplates(event)">
+  </div>
+  <div style="font-size:12px;color:#888;line-height:1.6;margin-bottom:12px">可編輯文字、調整順序。範本支援 [姓名]、[老師姓名]、[上課時間]、[登入方式]、[老師連結]、[顧問名稱]、[預設簽名]、[課後訊息署名]。</div>
   <hr>
   <div class="section-title">資料管理</div>
   <button class="btn btn-second" onclick="exportData()">匯出資料 (JSON)</button>
@@ -442,10 +450,31 @@ hr { border: none; border-top: 1px solid #E5DDC8; margin: 12px 0; }
   </div>
 </div>
 
+<!-- Template Modal -->
+<div class="modal" id="templateModal">
+  <div class="modal-box">
+    <span class="modal-close" onclick="closeTemplateModal()">×</span>
+    <div class="modal-title" id="templateModalTitle">新增範本</div>
+    <div class="form-group">
+      <label>範本名稱 *</label>
+      <input type="text" id="tplLabel" placeholder="例如：課後購課方式">
+    </div>
+    <div class="form-group">
+      <label>範本內容 *</label>
+      <textarea id="tplText" style="min-height:260px" placeholder="可使用 [姓名]、[老師姓名]、[上課時間]、[登入方式]、[老師連結] 等變數"></textarea>
+    </div>
+    <div style="display:flex; gap:8px; margin-top:8px">
+      <button class="btn btn-primary" onclick="saveTemplateFromModal()" style="flex:1; padding:11px">儲存範本</button>
+      <button class="btn btn-second" onclick="closeTemplateModal()" style="padding:11px 16px">取消</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
 const STORAGE_KEY = 'at_students_v1';
+const TEMPLATE_STORAGE_KEY = 'at_templates_v1';
 const SETTINGS_KEY = 'at_manager_settings_v1';
 const COMPLETED_TASKS_KEY = 'at_manager_completed_tasks_v1';
 const DIRTY_IDS_KEY = 'at_manager_dirty_student_ids_v1';
@@ -668,7 +697,7 @@ function copyTemplateByIndex(i) {
 
 
 // LINE message templates
-const TEMPLATES = [
+const DEFAULT_TEMPLATES = [
   {
     label: '課前預約確認',
     text: '哈囉，有幫您安排 [老師姓名] 老師 [上課時間] 的體驗課程，請問這時間可以嗎？\n\n老師的頁面：\n[老師連結]\n\n建議您可以先私訊老師，跟老師說一下學習需求，如有需要調整課程時間，請於上課前 12 小時調整唷～\n\n私訊老師跟第一次進教室教學：\nhttps://amazingtalker.elevio.help/zh-hant/articles/244\n\n流程說明：\n1. 登入官網或 APP\n2. 首頁（A、逛逛）會看到預約好的課程\n3. 點進去課程明細\n4. 找到老師的頁面點選「聯繫老師」，或者會有私訊的按鈕\n5. 完成課前問卷及傳個訊息給老師\n\nHelga'
@@ -714,6 +743,7 @@ const TEMPLATES = [
     "text": "這邊給您參考一下，購課及優惠券使用說明～\n\n購買堂數後可以開始預約要上課的日期，老師有送您一張 24 小時內購課折價優惠唷。\n\n📌 結帳流程\n點選自己的頭像到「帳戶」 → 「優惠券」 → 領優惠券 → 到老師頁面選擇想要的堂數 → 選擇結帳方式 → 完成結帳後就可以預約課程囉。"
   }
 ];
+let TEMPLATES = loadTemplates();
 
 // === Cloud Storage Configuration ===
 
@@ -1295,8 +1325,127 @@ function renderTemplates() {
     <div class="template-item" onclick="copyTemplateByIndex(${i})">
       <div class="template-label">${escapeHtmlForTemplate(t.label)}</div>
       <div class="template-text">${escapeHtmlForTemplate(applyTemplateFields(t.text, {}, t.label))}</div>
+      <div class="actions" style="margin-top:8px" onclick="event.stopPropagation()">
+        <button class="btn btn-line" onclick="copyTemplateByIndex(${i})">複製</button>
+        <button class="btn btn-edit" onclick="openTemplateModal(${i})">編輯</button>
+        <button class="btn btn-second" onclick="moveTemplate(${i}, -1)" ${i === 0 ? 'disabled style="opacity:.35"' : ''}>上移</button>
+        <button class="btn btn-second" onclick="moveTemplate(${i}, 1)" ${i === TEMPLATES.length - 1 ? 'disabled style="opacity:.35"' : ''}>下移</button>
+        <button class="btn btn-del" onclick="deleteTemplate(${i})">刪除</button>
+      </div>
     </div>
   `).join('');
+}
+
+function cloneTemplates(list) {
+  return (Array.isArray(list) ? list : []).map(t => ({
+    label: String(t.label || '').trim(),
+    text: String(t.text || '')
+  })).filter(t => t.label && t.text);
+}
+
+function loadTemplates() {
+  try {
+    const raw = localStorage.getItem(TEMPLATE_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      const custom = cloneTemplates(parsed);
+      if (custom.length) return custom;
+    }
+  } catch (e) {}
+  return cloneTemplates(DEFAULT_TEMPLATES);
+}
+
+function saveTemplates() {
+  localStorage.setItem(TEMPLATE_STORAGE_KEY, JSON.stringify(TEMPLATES));
+}
+
+let editingTemplateIndex = null;
+function openTemplateModal(i) {
+  editingTemplateIndex = Number.isInteger(i) ? i : null;
+  const tpl = editingTemplateIndex !== null ? TEMPLATES[editingTemplateIndex] : { label:'', text:'' };
+  document.getElementById('templateModalTitle').textContent = editingTemplateIndex !== null ? '編輯範本' : '新增範本';
+  document.getElementById('tplLabel').value = tpl ? tpl.label || '' : '';
+  document.getElementById('tplText').value = tpl ? tpl.text || '' : '';
+  document.getElementById('templateModal').classList.add('show');
+}
+
+function closeTemplateModal() {
+  document.getElementById('templateModal').classList.remove('show');
+  editingTemplateIndex = null;
+}
+
+function saveTemplateFromModal() {
+  const label = document.getElementById('tplLabel').value.trim();
+  const text = document.getElementById('tplText').value;
+  if (!label) { alert('請輸入範本名稱'); return; }
+  if (!text.trim()) { alert('請輸入範本內容'); return; }
+  const tpl = { label, text };
+  if (editingTemplateIndex !== null && TEMPLATES[editingTemplateIndex]) TEMPLATES[editingTemplateIndex] = tpl;
+  else TEMPLATES.push(tpl);
+  saveTemplates();
+  closeTemplateModal();
+  renderTemplates();
+  showToast('範本已儲存');
+}
+
+function moveTemplate(i, delta) {
+  const j = i + delta;
+  if (j < 0 || j >= TEMPLATES.length) return;
+  const temp = TEMPLATES[i];
+  TEMPLATES[i] = TEMPLATES[j];
+  TEMPLATES[j] = temp;
+  saveTemplates();
+  renderTemplates();
+}
+
+function deleteTemplate(i) {
+  const tpl = TEMPLATES[i];
+  if (!tpl) return;
+  if (!confirm(`確定刪除「${tpl.label}」？`)) return;
+  TEMPLATES.splice(i, 1);
+  saveTemplates();
+  renderTemplates();
+  showToast('範本已刪除');
+}
+
+function resetTemplates() {
+  if (!confirm('確定恢復預設範本？目前自訂範本與順序會被覆蓋。')) return;
+  TEMPLATES = cloneTemplates(DEFAULT_TEMPLATES);
+  saveTemplates();
+  renderTemplates();
+  showToast('已恢復預設範本');
+}
+
+function exportTemplates() {
+  const blob = new Blob([JSON.stringify(TEMPLATES, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `at_templates_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('已匯出範本');
+}
+
+function importTemplates(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      const imported = cloneTemplates(data);
+      if (!imported.length) throw new Error('沒有可用的範本');
+      if (confirm(`匯入 ${imported.length} 個範本？這會覆蓋目前範本。`)) {
+        TEMPLATES = imported;
+        saveTemplates();
+        renderTemplates();
+        showToast('已匯入範本');
+      }
+    } catch (err) { alert('匯入失敗：' + err.message); }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
 }
 
 function copyText(text) {
