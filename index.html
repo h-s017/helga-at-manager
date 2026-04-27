@@ -126,35 +126,10 @@ header .sub { font-size: 12px; opacity: 0.7; margin-top: 4px; }
 .pomo-card { background: white; border-radius: 12px; padding: 24px 20px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
 .pomo-status { font-size: 13px; color: #424A5A; font-weight: 600; margin-bottom: 12px; }
 .pomo-cat { display:flex; justify-content:center; margin-bottom: 10px; }
-.pomo-cat-frame { position:relative; width: 240px; height: 220px; overflow:hidden; border-radius: 18px; display:flex; align-items:center; justify-content:center; background:#fff; }
-.pomo-cat-image { position:relative; z-index:1; width: 230px; height: 210px; object-fit: contain; object-position: center; transform: scale(1); transition: opacity .25s ease, transform .4s ease; user-select:none; -webkit-user-drag:none; }
-.pomo-cat.breathing .pomo-cat-image { animation: none; }
-.pomo-cat.working .pomo-cat-image { animation: none; }
-.pomo-cat.resting .pomo-cat-image { animation: none; opacity: .98; }
-.pomo-cat.paused .pomo-cat-image, .pomo-cat.idle .pomo-cat-image { animation: none; }
-@keyframes catFloat { 0%, 100% { transform: none; } 50% { transform: none; } }
-@keyframes catWork { 0%,100% { transform: none;} 25% { transform: none;} 50% { transform: none;} 75% { transform: none;} }
-@keyframes catRest { 0%,100% { transform: none;} 50% { transform: none;} }
-.cat-blink, .cat-rest-eyes, .cat-yarn, .cat-tail, .cat-zzz { position:absolute; pointer-events:none; z-index:4; opacity:0; transition: opacity .25s ease; }
-.cat-blink, .cat-rest-eyes { width: 82px; left: 79px; top: 87px; display:flex; justify-content:space-between; }
-.cat-blink span, .cat-rest-eyes span { display:block; width: 20px; height: 3px; background:#343434; border-radius: 99px; box-shadow: 0 0 1px rgba(0,0,0,.12); }
-.cat-rest-eyes span { transform: rotate(-10deg); }
-.cat-rest-eyes span:last-child { transform: rotate(10deg); }
-.cat-yarn { width: 50px; height: 50px; left: 96px; top: 130px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #ececec 0 24%, #c8ccd1 25% 56%, #9da2a9 57% 100%); box-shadow: inset 0 0 0 2px rgba(90,90,90,.12), 0 4px 10px rgba(0,0,0,.08); }
-.cat-yarn::before, .cat-yarn::after { content:''; position:absolute; border-radius:50%; }
-.cat-yarn::before { inset:0; background: repeating-linear-gradient(45deg, transparent 0 8px, rgba(255,255,255,.55) 8px 10px), repeating-linear-gradient(-45deg, transparent 0 9px, rgba(120,120,120,.12) 9px 11px); }
-.cat-yarn::after { width: 34px; height: 5px; right: -23px; top: 22px; background:#c3c6cb; border-radius:10px; transform-origin:left center; transform: rotate(15deg); }
-.cat-tail { width: 74px; height: 26px; right: 18px; top: 142px; border-top: 6px solid #94989f; border-right: 6px solid transparent; border-radius: 80px; transform-origin: 12px 50%; filter: drop-shadow(0 1px 0 rgba(255,255,255,.25)); }
-.cat-zzz { right: 42px; top: 56px; font-size: 16px; color:#8f949c; font-weight:700; letter-spacing:.5px; text-shadow: 0 1px 0 rgba(255,255,255,.55); }
-.pomo-cat.idle .cat-blink, .pomo-cat.paused .cat-blink { opacity:1; animation: blinkFlash 5.2s steps(1,end) infinite; }
-.pomo-cat.working .cat-yarn { opacity:1; animation: yarnBounce 1.2s ease-in-out infinite; }
-.pomo-cat.working .cat-tail { opacity:1; animation: tailWag .95s ease-in-out infinite; }
-.pomo-cat.resting .cat-rest-eyes { opacity:1; }
-.pomo-cat.resting .cat-zzz { opacity:1; animation: zzzFloat 2.8s ease-in-out infinite; }
-@keyframes blinkFlash { 0%, 86%, 100% { opacity:0; } 87%, 92% { opacity:1; } }
-@keyframes yarnBounce { 0%,100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-5px) rotate(8deg); } }
-@keyframes tailWag { 0%,100% { transform: rotate(12deg); } 50% { transform: rotate(-12deg); } }
-@keyframes zzzFloat { 0%,100% { transform: translateY(0); opacity:.8; } 50% { transform: translateY(-8px); opacity:1; } }
+.pomo-cat-frame { width: 240px; height: 220px; overflow:hidden; border-radius: 18px; display:flex; align-items:center; justify-content:center; background:#fff; }
+.pomo-cat-image { width: 230px; height: 210px; object-fit: contain; object-position: center; transform: scale(1); transition: opacity .25s ease, transform .4s ease; user-select:none; -webkit-user-drag:none; }
+.pomo-cat.breathing .pomo-cat-image, .pomo-cat.working .pomo-cat-image, .pomo-cat.resting .pomo-cat-image, .pomo-cat.paused .pomo-cat-image { animation: none; transform: scale(1); }
+.pomo-cat.resting .pomo-cat-image { opacity: .98; }
 .pomo-time { font-size: 48px; font-weight: 200; color: #2C2C2C; margin: 8px 0 16px; font-variant-numeric: tabular-nums; letter-spacing: 1px; }
 .pomo-progress { width: 100%; height: 4px; background: #EAE4D8; border-radius: 2px; overflow: hidden; margin-bottom: 20px; }
 .pomo-progress-bar { height: 100%; background: #424A5A; width: 0%; transition: width 1s linear; }
@@ -298,12 +273,7 @@ hr { border: none; border-top: 1px solid #E5DDC8; margin: 12px 0; }
     <div class="pomo-status" id="pomoStatus">準備工作</div>
     <div class="pomo-cat" id="pomoCat">
       <div class="pomo-cat-frame">
-        <img id="pomoCatImg" class="pomo-cat-image" src="cat_idle.png" alt="美短貓番茄鐘角色（同一隻貓動畫版）">
-        <div class="cat-blink" aria-hidden="true"><span></span><span></span></div>
-        <div class="cat-rest-eyes" aria-hidden="true"><span></span><span></span></div>
-        <div class="cat-yarn" aria-hidden="true"></div>
-        <div class="cat-tail" aria-hidden="true"></div>
-        <div class="cat-zzz" aria-hidden="true">Zzz</div>
+        <img id="pomoCatImg" class="pomo-cat-image" src="cat_idle.png" alt="美短貓番茄鐘角色">
       </div>
     </div>
     <div class="pomo-time" id="pomoTime">25:00</div>
@@ -1953,7 +1923,7 @@ function catSetState(state) {
   if (!cat || !catImg) return;
 
   const nextSrc = CAT_IMAGES[state] || CAT_IMAGES.idle;
-  cat.classList.remove('idle', 'breathing', 'working', 'resting', 'paused');
+  cat.classList.remove('breathing', 'working', 'resting', 'paused');
 
   if (state === 'working') {
     cat.classList.add('breathing', 'working');
@@ -1961,8 +1931,6 @@ function catSetState(state) {
     cat.classList.add('breathing', 'resting');
   } else if (state === 'paused') {
     cat.classList.add('paused');
-  } else {
-    cat.classList.add('breathing', 'idle');
   }
 
   if (!catImg.src.endsWith(nextSrc)) {
