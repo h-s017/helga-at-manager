@@ -303,7 +303,7 @@ hr { border: none; border-top: 1px solid #E5DDC8; margin: 12px 0; }
 <div id="settingsView" style="display:none">
   <div class="settings-card">
     <div class="section-title" style="margin-top:0">第一次使用設定</div>
-    <div class="hint">每位顧問請填入自己的資料與 Apps Script URL。這些設定只會存在自己的瀏覽器裡，不會和其他顧問共用。</div>
+    <div class="hint">每位顧問請填入自己的資料、Apps Script URL 與同步金鑰。這些設定只會存在自己的瀏覽器裡，不會和其他顧問共用。</div>
     <div class="settings-grid">
       <div class="form-group">
         <label>顧問名稱</label>
@@ -326,6 +326,11 @@ hr { border: none; border-top: 1px solid #E5DDC8; margin: 12px 0; }
       <div class="form-group settings-full">
         <label>Apps Script URL / 同步網址</label>
         <input type="url" id="setSyncUrl" placeholder="貼上自己的 Apps Script Web App URL">
+      </div>
+      <div class="form-group settings-full">
+        <label>同步金鑰 / Token</label>
+        <input type="password" id="setSyncToken" placeholder="請填入和 Apps Script 相同的同步金鑰">
+        <div class="hint">用來保護 Google Sheet 與日曆寫入。每位顧問請使用自己的金鑰，不要共用。</div>
       </div>
       <div class="form-group">
         <label>預設簽名</label>
@@ -489,6 +494,7 @@ let selectedTaskDate = '';
 const DEFAULT_SETTINGS = {
   consultantName: 'Helga',
   syncUrl: '',
+  syncToken: '',
   defaultSignature: 'Helga',
   postClassSignature: 'Helga',
   brandColor: '#424A5A',
@@ -554,6 +560,17 @@ function getSheetsApiUrl() {
   return (appSettings.syncUrl || '').trim();
 }
 
+function getSyncToken() {
+  return (appSettings.syncToken || '').trim();
+}
+
+function appendAuthParams(url) {
+  const token = getSyncToken();
+  if (!token) return url;
+  const sep = url.includes('?') ? '&' : '?';
+  return url + sep + 'token=' + encodeURIComponent(token);
+}
+
 function hexToRgb(hex) {
   const clean = String(hex || '#424A5A').replace('#','');
   const num = parseInt(clean.length === 3 ? clean.split('').map(x=>x+x).join('') : clean, 16);
@@ -577,6 +594,7 @@ function populateSettingsForm() {
   const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val ?? ''; };
   set('setConsultantName', appSettings.consultantName);
   set('setSyncUrl', appSettings.syncUrl);
+  set('setSyncToken', appSettings.syncToken || '');
   set('setDefaultSignature', appSettings.defaultSignature);
   set('setPostClassSignature', appSettings.postClassSignature);
   set('setBrandColor', appSettings.brandColor);
@@ -602,6 +620,7 @@ function readSettingsForm() {
   return {
     consultantName: val('setConsultantName') || '顧問',
     syncUrl: val('setSyncUrl'),
+    syncToken: val('setSyncToken'),
     // 簽名可刻意留空：留空時，範本不會自動帶簽名。
     defaultSignature: val('setDefaultSignature'),
     postClassSignature: val('setPostClassSignature'),
@@ -639,7 +658,10 @@ async function testSyncUrl() {
   const url = (document.getElementById('setSyncUrl')?.value || '').trim();
   if (!url) { alert('請先貼上 Apps Script URL'); return; }
   try {
-    const res = await fetch(url + '?action=list');
+    const sep = url.includes('?') ? '&' : '?';
+    const token = getSyncToken();
+    const testUrl = url + sep + 'action=list' + (token ? '&token=' + encodeURIComponent(token) : '');
+    const res = await fetch(testUrl);
     const data = await res.json();
     alert(data.students ? '同步測試成功，可以讀取資料。' : '有連上，但回傳格式不含 students，請檢查 Apps Script。');
   } catch (e) {
@@ -648,7 +670,7 @@ async function testSyncUrl() {
 }
 
 function copySetupSummary() {
-  const summary = `AT 學員管理設定\n顧問名稱：${appSettings.consultantName}\n同步網址：${appSettings.syncUrl ? '已設定' : '未設定'}\n預設簽名：${appSettings.defaultSignature || '（不帶簽名）'}\n課後署名：${appSettings.postClassSignature || '（不帶署名）'}\n品牌色：${appSettings.brandColor}\n字體大小：${appSettings.fontSize || 16}px\n課前一天提醒：${appSettings.preDayMin} 分鐘前\n課前自我提醒：${appSettings.preClassMin} 分鐘前\n課後關懷：${appSettings.postCareMin} 分鐘後\n24H Log：課程開始後即進入待辦，24 小時內完成；日曆提醒設於 ${appSettings.logHours} 小時後\n番茄鐘：${appSettings.pomodoroEnabled ? '啟用' : '關閉'}`;
+  const summary = `AT 學員管理設定\n顧問名稱：${appSettings.consultantName}\n同步網址：${appSettings.syncUrl ? '已設定' : '未設定'}\n同步金鑰：${appSettings.syncToken ? '已設定' : '未設定'}\n預設簽名：${appSettings.defaultSignature || '（不帶簽名）'}\n課後署名：${appSettings.postClassSignature || '（不帶署名）'}\n品牌色：${appSettings.brandColor}\n字體大小：${appSettings.fontSize || 16}px\n課前一天提醒：${appSettings.preDayMin} 分鐘前\n課前自我提醒：${appSettings.preClassMin} 分鐘前\n課後關懷：${appSettings.postCareMin} 分鐘後\n24H Log：課程開始後即進入待辦，24 小時內完成；日曆提醒設於 ${appSettings.logHours} 小時後\n番茄鐘：${appSettings.pomodoroEnabled ? '啟用' : '關閉'}`;
   copyText(summary);
 }
 
@@ -905,7 +927,10 @@ async function syncFromCloud() {
     const localMap = new Map(localBefore.map(s => [s.id, s]));
     const dirtyIds = getDirtyIds();
 
-    const res = await fetch(apiUrl + '?action=list&ts=' + Date.now());
+    const sep = apiUrl.includes('?') ? '&' : '?';
+    const token = getSyncToken();
+    const listUrl = apiUrl + sep + 'action=list&ts=' + Date.now() + (token ? '&token=' + encodeURIComponent(token) : '');
+    const res = await fetch(listUrl);
     const data = await res.json();
     if (data.students) {
       const deletedIds = getDeletedIds();
@@ -976,7 +1001,7 @@ async function pushToCloud() {
       method: 'POST',
       mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'save', students: students })
+      body: JSON.stringify({ action: 'save', token: getSyncToken(), students: students })
     });
     lastSyncTime = new Date();
     updateSyncStatus('已送出儲存 ' + lastSyncTime.toLocaleTimeString('zh-TW', {hour:'2-digit', minute:'2-digit'}));
@@ -1631,7 +1656,8 @@ function addToCalendar(id) {
       classTime: s.classTime || '',
       phone: s.phone || '',
       lineId: s.lineId || '',
-      teacherName: s.teacherName || ''
+      teacherName: s.teacherName || '',
+      token: getSyncToken()
     });
     const url = `${syncUrl}${sep}${params.toString()}`;
 

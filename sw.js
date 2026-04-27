@@ -1,4 +1,4 @@
-const CACHE_NAME = 'at-manager-template-savefix-v1';
+const CACHE_NAME = 'at-manager-token-secure-v1';
 const APP_SHELL = [
   './',
   './index.html',
