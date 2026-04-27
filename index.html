@@ -273,6 +273,7 @@ hr { border: none; border-top: 1px solid #E5DDC8; margin: 12px 0; }
     </div>
     <div class="pomo-controls">
       <button class="pomo-btn pomo-btn-primary" id="pomoStart" onclick="pomoToggle()">開始</button>
+      <button class="pomo-btn pomo-btn-primary" id="pomoRestStart" onclick="pomoStartRest()" style="display:none">開始休息</button>
       <button class="pomo-btn pomo-btn-second" onclick="pomoReset()">重置</button>
     </div>
     <div class="pomo-stats">
@@ -706,6 +707,57 @@ function normalizeStudentRecord(s) {
   };
 }
 
+
+function studentRecordKey(s) {
+  const uid = String(s.uid || '').trim().toLowerCase();
+  if (uid) return 'uid:' + uid;
+  const phone = String(s.phone || '').replace(/[^0-9+]/g, '');
+  if (phone) return 'phone:' + phone;
+  const line = String(s.lineId || '').trim().toLowerCase();
+  if (line) return 'line:' + line;
+  const name = String(s.name || '').trim().toLowerCase();
+  const classTime = String(s.classTime || '').trim();
+  if (name && classTime) return 'name-time:' + name + '|' + classTime;
+  if (name) return 'name:' + name;
+  return 'id:' + String(s.id || Math.random());
+}
+
+function studentRecordTimestamp(s) {
+  const raw = s.updatedAt || s.createdAt || '';
+  const t = Date.parse(raw);
+  return Number.isFinite(t) ? t : 0;
+}
+
+function dedupeStudentRecords(list, preferredIds = new Set()) {
+  const byKey = new Map();
+  (Array.isArray(list) ? list : [])
+    .map(normalizeStudentRecord)
+    .filter(s => s.id)
+    .forEach(s => {
+      const key = studentRecordKey(s);
+      const old = byKey.get(key);
+      if (!old) {
+        byKey.set(key, s);
+        return;
+      }
+      const sPreferred = preferredIds.has(s.id);
+      const oldPreferred = preferredIds.has(old.id);
+      let keep = old;
+      if (sPreferred && !oldPreferred) keep = s;
+      else if (sPreferred === oldPreferred) {
+        const st = studentRecordTimestamp(s);
+        const ot = studentRecordTimestamp(old);
+        if (st > ot) keep = s;
+        else if (st === ot) {
+          const rank = {new:0, contacted:1, booked:2, done:3, log:4, converted:5, lost:5};
+          if ((rank[s.status] ?? 0) >= (rank[old.status] ?? 0)) keep = s;
+        }
+      }
+      byKey.set(key, keep);
+    });
+  return [...byKey.values()];
+}
+
 function getDirtyIds() {
   try { return new Set(JSON.parse(localStorage.getItem(DIRTY_IDS_KEY) || '[]')); }
   catch (e) { return new Set(); }
@@ -744,6 +796,7 @@ function hasRecentLocalSave() {
   return t && (Date.now() - t < 5 * 60 * 1000);
 }
 function saveLocalStudents() {
+  students = dedupeStudentRecords(students, getDirtyIds());
   localStorage.setItem(STORAGE_KEY, JSON.stringify(students));
 }
 
@@ -771,7 +824,7 @@ async function syncFromCloud() {
   updateSyncStatus('同步中...');
   
   try {
-    const localBefore = Array.isArray(students) ? students.map(normalizeStudentRecord).filter(s => s.id) : [];
+    const localBefore = dedupeStudentRecords(Array.isArray(students) ? students : [], getDirtyIds());
     const localMap = new Map(localBefore.map(s => [s.id, s]));
     const dirtyIds = getDirtyIds();
 
@@ -779,7 +832,7 @@ async function syncFromCloud() {
     const data = await res.json();
     if (data.students) {
       const deletedIds = getDeletedIds();
-      const cloudStudents = data.students.map(normalizeStudentRecord).filter(s => s.id && !deletedIds.has(s.id));
+      const cloudStudents = dedupeStudentRecords(data.students.map(normalizeStudentRecord).filter(s => s.id && !deletedIds.has(s.id)), new Set());
       const cloudMap = new Map(cloudStudents.map(s => [s.id, s]));
 
       // Merge rule: cloud can update existing records, but it must never erase local-only records.
@@ -799,7 +852,7 @@ async function syncFromCloud() {
       // De-duplicate by id.
       const mergedMap = new Map();
       merged.forEach(s => mergedMap.set(s.id, s));
-      students = [...mergedMap.values()];
+      students = dedupeStudentRecords([...mergedMap.values()], dirtyIds);
 
       // Clear dirty flag only when cloud already contains that record id.
       dirtyIds.forEach(id => { if (cloudMap.has(id)) clearStudentDirty(id); });
@@ -1505,6 +1558,7 @@ function saveStudent() {
     students.push({ id: savedId, createdAt: nowIso, updatedAt: nowIso, ...data });
   }
   markStudentDirty(savedId);
+  students = dedupeStudentRecords(students, new Set([...getDirtyIds(), savedId]));
   saveLocalStudents();
   closeModal();
   render();
@@ -1615,7 +1669,7 @@ document.addEventListener('visibilitychange', () => {
 
 // === Pomodoro ===
 let pomoConfig = { work: 25 * 60, rest: 5 * 60 };
-let pomoState = 'idle'; // idle / working / resting / paused
+let pomoState = 'idle'; // idle / working / rest_ready / resting / paused
 let pomoRemaining = pomoConfig.work;
 let pomoInterval = null;
 let pomoCount = parseInt(localStorage.getItem('pomo_count_' + new Date().toDateString()) || '0', 10);
@@ -1678,7 +1732,9 @@ function pomoInit() {
 }
 
 function pomoToggle() {
-  if (pomoState === 'idle' || pomoState === 'paused') {
+  if (pomoState === 'rest_ready') {
+    pomoStartRest();
+  } else if (pomoState === 'idle' || pomoState === 'paused') {
     pomoStart();
   } else {
     pomoPause();
@@ -1688,6 +1744,9 @@ function pomoToggle() {
 function pomoStart() {
   pomoRequestPermission();
   unlockPomoAudio();
+  clearInterval(pomoInterval);
+  const restBtn = document.getElementById('pomoRestStart');
+  if (restBtn) restBtn.style.display = 'none';
   if (pomoState === 'idle') {
     pomoState = 'working';
     document.getElementById('pomoStatus').textContent = '工作中';
@@ -1716,6 +1775,8 @@ function pomoReset() {
   pomoState = 'idle';
   pomoRemaining = pomoConfig.work;
   document.getElementById('pomoStart').textContent = '開始';
+  const restBtn = document.getElementById('pomoRestStart');
+  if (restBtn) restBtn.style.display = 'none';
   document.getElementById('pomoStatus').textContent = '準備工作';
   catSetState('idle');
   pomoUpdateDisplay();
@@ -1769,25 +1830,44 @@ function pomoComplete() {
   }, 150);
   
   if (pomoState === 'working') {
-    // Work done -> rest
+    // Work done -> wait for user to start rest manually
     pomoCount++;
     localStorage.setItem('pomo_count_' + new Date().toDateString(), pomoCount);
     pomoUpdateCount();
-    pomoState = 'resting';
+    pomoState = 'rest_ready';
     pomoRemaining = pomoConfig.rest;
-    document.getElementById('pomoStatus').textContent = '休息中 · 喝口水吧～';
+    document.getElementById('pomoStatus').textContent = '工作完成 · 請按「開始休息」';
+    document.getElementById('pomoStart').textContent = '開始下一輪';
+    const restBtn = document.getElementById('pomoRestStart');
+    if (restBtn) restBtn.style.display = '';
     catSetState('resting');
     pomoUpdateDisplay();
-    pomoInterval = setInterval(pomoTick, 1000);
-  } else {
+  } else if (pomoState === 'resting') {
     // Rest done -> idle
     pomoState = 'idle';
     pomoRemaining = pomoConfig.work;
     document.getElementById('pomoStart').textContent = '開始';
+    const restBtn = document.getElementById('pomoRestStart');
+    if (restBtn) restBtn.style.display = 'none';
     document.getElementById('pomoStatus').textContent = '休息結束！繼續加油';
     catSetState('idle');
     pomoUpdateDisplay();
   }
+}
+
+function pomoStartRest() {
+  pomoRequestPermission();
+  unlockPomoAudio();
+  clearInterval(pomoInterval);
+  pomoState = 'resting';
+  pomoRemaining = pomoConfig.rest;
+  document.getElementById('pomoStatus').textContent = '休息中 · 喝口水吧～';
+  document.getElementById('pomoStart').textContent = '暫停';
+  const restBtn = document.getElementById('pomoRestStart');
+  if (restBtn) restBtn.style.display = 'none';
+  catSetState('resting');
+  pomoUpdateDisplay();
+  pomoInterval = setInterval(pomoTick, 1000);
 }
 
 function pomoUpdateDisplay() {
@@ -1795,7 +1875,7 @@ function pomoUpdateDisplay() {
   const s = pomoRemaining % 60;
   document.getElementById('pomoTime').textContent = String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
   
-  const total = pomoState === 'resting' ? pomoConfig.rest : pomoConfig.work;
+  const total = (pomoState === 'resting' || pomoState === 'rest_ready') ? pomoConfig.rest : pomoConfig.work;
   const pct = ((total - pomoRemaining) / total) * 100;
   document.getElementById('pomoProgress').style.width = pct + '%';
 }
