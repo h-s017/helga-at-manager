@@ -1,4 +1,4 @@
-const CACHE_NAME = 'at-manager-waitcontact-cat-20260427-01';
+const CACHE_NAME = 'at-manager-cat-anim-v2';
 const APP_SHELL = [
   './',
   './index.html',
