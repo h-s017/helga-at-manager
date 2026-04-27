@@ -129,9 +129,12 @@ header .sub { font-size: 12px; opacity: 0.7; margin-top: 4px; }
 .pomo-cat-frame { width: 240px; height: 220px; overflow:hidden; border-radius: 18px; display:flex; align-items:center; justify-content:center; background:#fff; }
 .pomo-cat-image { width: 230px; height: 210px; object-fit: contain; object-position: center; transform: scale(1); transition: opacity .25s ease, transform .4s ease; user-select:none; -webkit-user-drag:none; }
 .pomo-cat.breathing .pomo-cat-image { animation: catFloat 4.2s ease-in-out infinite; }
-.pomo-cat.working .pomo-cat-image { transform: scale(1.02); }
-.pomo-cat.resting .pomo-cat-image { opacity: .98; }
+.pomo-cat.working .pomo-cat-image { animation: catWork 2.4s ease-in-out infinite; }
+.pomo-cat.resting .pomo-cat-image { animation: catRest 4.8s ease-in-out infinite; opacity: .98; }
+.pomo-cat.paused .pomo-cat-image { animation: catFloat 4.8s ease-in-out infinite; }
 @keyframes catFloat { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-3px) scale(1.02); } }
+@keyframes catWork { 0%,100% { transform: translateY(0) scale(1.01) rotate(0deg);} 25% { transform: translateY(-2px) scale(1.03) rotate(-1deg);} 50% { transform: translateY(-4px) scale(1.04) rotate(0deg);} 75% { transform: translateY(-2px) scale(1.03) rotate(1deg);} }
+@keyframes catRest { 0%,100% { transform: translateY(0) scale(1);} 50% { transform: translateY(-2px) scale(1.015);} }
 .pomo-time { font-size: 48px; font-weight: 200; color: #2C2C2C; margin: 8px 0 16px; font-variant-numeric: tabular-nums; letter-spacing: 1px; }
 .pomo-progress { width: 100%; height: 4px; background: #EAE4D8; border-radius: 2px; overflow: hidden; margin-bottom: 20px; }
 .pomo-progress-bar { height: 100%; background: #424A5A; width: 0%; transition: width 1s linear; }
@@ -232,7 +235,7 @@ hr { border: none; border-top: 1px solid #E5DDC8; margin: 12px 0; }
   <div class="filter-bar">
     <div class="filter-chip active" data-filter="all">全部</div>
     <div class="filter-chip" data-filter="new">新名單</div>
-    <div class="filter-chip" data-filter="contacted">已聯繫</div>
+    <div class="filter-chip" data-filter="contacted">待聯繫</div>
     <div class="filter-chip" data-filter="booked">已約課</div>
     <div class="filter-chip" data-filter="done">體驗完成</div>
     <div class="filter-chip" data-filter="log">已 log</div>
@@ -264,7 +267,7 @@ hr { border: none; border-top: 1px solid #E5DDC8; margin: 12px 0; }
     <div class="pomo-status" id="pomoStatus">準備工作</div>
     <div class="pomo-cat" id="pomoCat">
       <div class="pomo-cat-frame">
-        <img id="pomoCatImg" class="pomo-cat-image" src="cat_idle.png" alt="美短貓番茄鐘角色">
+        <img id="pomoCatImg" class="pomo-cat-image" src="cat_idle.png" alt="美短貓番茄鐘角色（同一隻貓動畫版）">
       </div>
     </div>
     <div class="pomo-time" id="pomoTime">25:00</div>
@@ -312,11 +315,11 @@ hr { border: none; border-top: 1px solid #E5DDC8; margin: 12px 0; }
       </div>
       <div class="form-group">
         <label>預設簽名</label>
-        <input type="text" id="setDefaultSignature" placeholder="例如：Helga">
+        <input type="text" id="setDefaultSignature" placeholder="可留空，不自動帶簽名">
       </div>
       <div class="form-group">
         <label>課後訊息署名</label>
-        <input type="text" id="setPostClassSignature" placeholder="例如：Helga">
+        <input type="text" id="setPostClassSignature" placeholder="可留空；未填則不帶課後署名">
       </div>
     </div>
   </div>
@@ -417,7 +420,7 @@ hr { border: none; border-top: 1px solid #E5DDC8; margin: 12px 0; }
         <label>狀態</label>
         <select id="fStatus">
           <option value="new">新名單</option>
-          <option value="contacted">已聯繫</option>
+          <option value="contacted">待聯繫</option>
           <option value="booked">已約課</option>
           <option value="done">體驗完成</option>
           <option value="log">已 log</option>
@@ -564,8 +567,9 @@ function readSettingsForm() {
   return {
     consultantName: val('setConsultantName') || '顧問',
     syncUrl: val('setSyncUrl'),
-    defaultSignature: val('setDefaultSignature') || val('setConsultantName') || '顧問',
-    postClassSignature: val('setPostClassSignature') || val('setDefaultSignature') || val('setConsultantName') || '顧問',
+    // 簽名可刻意留空：留空時，範本不會自動帶簽名。
+    defaultSignature: val('setDefaultSignature'),
+    postClassSignature: val('setPostClassSignature'),
     brandColor: /^#[0-9a-fA-F]{6}$/.test(colorText) ? colorText : '#424A5A',
     fontSize: Math.max(14, Math.min(22, num('setFontSize', 16))),
     preDayMin: Math.max(60, Math.min(2880, num('setPreDayMin', 1440))),
@@ -609,22 +613,45 @@ async function testSyncUrl() {
 }
 
 function copySetupSummary() {
-  const summary = `AT 學員管理設定\n顧問名稱：${appSettings.consultantName}\n同步網址：${appSettings.syncUrl ? '已設定' : '未設定'}\n預設簽名：${appSettings.defaultSignature}\n課後署名：${appSettings.postClassSignature}\n品牌色：${appSettings.brandColor}\n字體大小：${appSettings.fontSize || 16}px\n課前一天提醒：${appSettings.preDayMin} 分鐘前\n課前自我提醒：${appSettings.preClassMin} 分鐘前\n課後關懷：${appSettings.postCareMin} 分鐘後\n24H Log：課程開始後即進入待辦，24 小時內完成；日曆提醒設於 ${appSettings.logHours} 小時後\n番茄鐘：${appSettings.pomodoroEnabled ? '啟用' : '關閉'}`;
+  const summary = `AT 學員管理設定\n顧問名稱：${appSettings.consultantName}\n同步網址：${appSettings.syncUrl ? '已設定' : '未設定'}\n預設簽名：${appSettings.defaultSignature || '（不帶簽名）'}\n課後署名：${appSettings.postClassSignature || '（不帶署名）'}\n品牌色：${appSettings.brandColor}\n字體大小：${appSettings.fontSize || 16}px\n課前一天提醒：${appSettings.preDayMin} 分鐘前\n課前自我提醒：${appSettings.preClassMin} 分鐘前\n課後關懷：${appSettings.postCareMin} 分鐘後\n24H Log：課程開始後即進入待辦，24 小時內完成；日曆提醒設於 ${appSettings.logHours} 小時後\n番茄鐘：${appSettings.pomodoroEnabled ? '啟用' : '關閉'}`;
   copyText(summary);
 }
 
 function applyTemplateFields(text, s = {}, label = '') {
   const isPostClass = /課後|關懷|24 小時|一週後/.test(label);
-  const signature = isPostClass ? appSettings.postClassSignature : appSettings.defaultSignature;
-  return String(text || '')
-    .replace(/Helga/g, signature || '')
-    .replace(/\[顧問名稱\]/g, appSettings.consultantName || '')
+  const signature = String(isPostClass ? (appSettings.postClassSignature || '') : (appSettings.defaultSignature || '')).trim();
+  const consultantName = String(appSettings.consultantName || '').trim();
+
+  let output = String(text || '');
+
+  // 「找Helga」通常是指顧問名稱，不視為簽名；即使簽名留空，也保留顧問名稱。
+  output = output.replace(/找Helga/g, consultantName ? `找${consultantName}` : '找顧問');
+
+  // 句中自我介紹：簽名空白時，整段自我介紹移除，避免留下「我是～」。
+  output = output.replace(/，?我是\s*Helga\s*[～~]?/g, signature ? `，我是 ${signature}～` : '');
+
+  // 結尾獨立簽名行：簽名空白時移除整行；有簽名時替換。
+  output = output.replace(/(^|\n)\s*Helga\s*(?=\n|$)/g, signature ? `$1${signature}` : '$1');
+
+  // 其他殘留 Helga：有簽名用簽名替換；簽名空白則移除。
+  output = output.replace(/Helga/g, signature || '');
+
+  output = output
+    .replace(/\[顧問名稱\]/g, consultantName || '')
     .replace(/\[姓名\]/g, s.name || '')
     .replace(/\[老師姓名\]/g, s.teacherName || '')
     .replace(/\[上課時間\]/g, s.classTime ? fmt(s.classTime) : '')
     .replace(/\[時間\]/g, s.classTime ? fmt(s.classTime) : '')
     .replace(/\[登入方式\]/g, s.loginType || 'Email')
     .replace(/\[老師連結\]/g, s.teacherUrl || '');
+
+  // 清掉因移除簽名產生的多餘空白行。
+  output = output
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
+  return output;
 }
 
 function copyTemplateByIndex(i) {
@@ -941,7 +968,7 @@ function fmtTime(dt) {
   return d.toLocaleTimeString('zh-TW', { hour:'2-digit', minute:'2-digit', hour12:false });
 }
 function statusName(s) {
-  return {new:'新名單',contacted:'已聯繫',booked:'已約課',done:'體驗完成',log:'已 log',converted:'體轉正',lost:'流失'}[s] || s;
+  return {new:'新名單',contacted:'待聯繫',booked:'已約課',done:'體驗完成',log:'已 log',converted:'體轉正',lost:'流失'}[s] || s;
 }
 function showToast(msg) {
   const t = document.getElementById('toast');
@@ -1688,7 +1715,7 @@ function unlockPomoAudio() {
   } catch(e) {}
 }
 
-const CAT_IMAGES = { idle: 'cat_idle.png', working: 'cat_working.png', resting: 'cat_resting.png', paused: 'cat_idle.png' };
+const CAT_IMAGES = { idle: 'cat_idle.png', working: 'cat_idle.png', resting: 'cat_idle.png', paused: 'cat_idle.png' };
 
 function pomoReadConfig() {
   const w = parseInt(document.getElementById('pomoWork').value, 10) || 25;
