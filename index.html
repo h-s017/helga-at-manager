@@ -405,8 +405,7 @@ hr { border: none; border-top: 1px solid #E5DDC8; margin: 12px 0; }
         <label>登入方式</label>
         <select id="fLogin">
           <option value="">--</option>
-          <option>Email</option>
-          <option>Phone</option>
+          <option value="信箱/手機">信箱/手機</option>
           <option>Apple</option>
           <option>Google</option>
           <option>Facebook</option>
@@ -699,7 +698,7 @@ function applyTemplateFields(text, s = {}, label = '') {
     .replace(/\[老師姓名\]/g, s.teacherName || '')
     .replace(/\[上課時間\]/g, s.classTime ? fmt(s.classTime) : '')
     .replace(/\[時間\]/g, s.classTime ? fmt(s.classTime) : '')
-    .replace(/\[登入方式\]/g, s.loginType || 'Email')
+    .replace(/\[登入方式\]/g, displayLoginType(s.loginType) || '信箱/手機')
     .replace(/\[老師連結\]/g, s.teacherUrl || '');
 
   // 清掉因移除簽名產生的多餘空白行。
@@ -779,8 +778,8 @@ function normalizeStudentRecord(s) {
     id: String(s.id || ''),
     name: String(s.name || ''),
     uid: String(s.uid || ''),
-    phone: String(s.phone || ''),
-    loginType: String(s.loginType || ''),
+    phone: normalizePhoneNumber(s.phone || ''),
+    loginType: normalizeLoginType(s.loginType || ''),
     lineId: String(s.lineId || ''),
     need: String(s.need || ''),
     teacherName: String(s.teacherName || ''),
@@ -796,7 +795,7 @@ function normalizeStudentRecord(s) {
 function studentRecordKey(s) {
   const uid = String(s.uid || '').trim().toLowerCase();
   if (uid) return 'uid:' + uid;
-  const phone = String(s.phone || '').replace(/[^0-9+]/g, '');
+  const phone = normalizePhoneNumber(s.phone || '').replace(/[^0-9+]/g, '');
   if (phone) return 'phone:' + phone;
   const line = String(s.lineId || '').trim().toLowerCase();
   if (line) return 'line:' + line;
@@ -1060,6 +1059,25 @@ function fmtTime(dt) {
 }
 function statusName(s) {
   return {new:'新名單',contacted:'待聯繫',booked:'已約課',done:'體驗完成',log:'已 log',converted:'體轉正',lost:'流失'}[s] || s;
+}
+
+function normalizeLoginType(v) {
+  const t = String(v || '').trim();
+  if (t === 'Email' || t.toLowerCase() === 'email' || t === 'Phone' || t.toLowerCase() === 'phone' || t === '信箱' || t === '手機') return '信箱/手機';
+  return t;
+}
+
+function displayLoginType(v) {
+  return normalizeLoginType(v);
+}
+
+function normalizePhoneNumber(v) {
+  const raw = String(v || '').trim();
+  if (!raw) return '';
+  const compact = raw.replace(/[\s\-()]/g, '');
+  // 台灣手機若被 Google Sheet 吃掉第一個 0，通常會變成 9 碼且 9 開頭，這裡補回 0。
+  if (/^9\d{8}$/.test(compact)) return '0' + compact;
+  return raw;
 }
 function showToast(msg) {
   const t = document.getElementById('toast');
@@ -1346,14 +1364,14 @@ function renderList() {
         <div class="status s-${s.status}">${statusName(s.status)}</div>
       </div>
       <div class="card-info">
-        ${s.phone ? `<span class="label">📱</span>${s.phone} ` : ''}
+        ${s.phone ? `<span class="label">📱</span>${normalizePhoneNumber(s.phone)} ` : ''}
         ${s.lineId ? `<span class="label">LINE</span>${s.lineId} ` : ''}
-        ${s.loginType ? `<span class="label">登入</span>${s.loginType}` : ''}
+        ${s.loginType ? `<span class="label">登入</span>${displayLoginType(s.loginType)}` : ''}
       </div>
       ${s.need ? `<div class="card-need">📝 ${s.need}</div>` : ''}
       ${s.classTime ? `<div class="card-time">⏰ 體驗課：${fmt(s.classTime)}</div>` : ''}
       <div class="actions">
-        ${s.phone ? `<button class="btn btn-call" onclick="callViaEzuc('${s.phone}')">📞 EZUC+</button>` : ''}
+        ${s.phone ? `<button class="btn btn-call" onclick="callViaEzuc('${normalizePhoneNumber(s.phone)}')">📞 EZUC+</button>` : ''}
         ${s.classTime ? `<button class="btn btn-cal" onclick="addToCalendar('${s.id}')">加日曆</button>` : ''}
         ${s.lineId || s.phone ? `<button class="btn btn-line" onclick="copyForStudent('${s.id}')">複製訊息</button>` : ''}
         ${s.teacherUrl ? `<button class="btn btn-second" onclick="openTeacher('${s.id}')">老師頁</button>` : ''}
@@ -1610,7 +1628,7 @@ function callViaEzuc(phone) {
 // === Calendar ===
 function buildCalendarEvents(s) {
   const ct = new Date(s.classTime);
-  const detailExtra = (s.phone ? `\n手機: ${s.phone}` : '')
+  const detailExtra = (s.phone ? `\n手機: ${normalizePhoneNumber(s.phone)}` : '')
     + (s.lineId ? `\nLINE: ${s.lineId}` : '')
     + (s.teacherName ? `\n老師: ${s.teacherName}` : '')
     + (s.teacherUrl ? `\n老師連結: ${s.teacherUrl}` : '');
@@ -1654,7 +1672,7 @@ function addToCalendar(id) {
       action: 'addCalendarEventsSimple',
       name: s.name || '',
       classTime: s.classTime || '',
-      phone: s.phone || '',
+      phone: normalizePhoneNumber(s.phone) || '',
       lineId: s.lineId || '',
       teacherName: s.teacherName || '',
       token: getSyncToken()
@@ -1749,7 +1767,7 @@ function openModal(id) {
     document.getElementById('fName').value = s.name || '';
     document.getElementById('fUid').value = s.uid || '';
     document.getElementById('fPhone').value = s.phone || '';
-    document.getElementById('fLogin').value = s.loginType || '';
+    document.getElementById('fLogin').value = normalizeLoginType(s.loginType || '');
     document.getElementById('fLine').value = s.lineId || '';
     document.getElementById('fNeed').value = s.need || '';
     document.getElementById('fTeacherName').value = s.teacherName || '';
@@ -1776,8 +1794,8 @@ function saveStudent() {
   const data = {
     name,
     uid: document.getElementById('fUid').value.trim(),
-    phone: document.getElementById('fPhone').value.trim(),
-    loginType: document.getElementById('fLogin').value,
+    phone: normalizePhoneNumber(document.getElementById('fPhone').value.trim()),
+    loginType: normalizeLoginType(document.getElementById('fLogin').value),
     lineId: document.getElementById('fLine').value.trim(),
     need: document.getElementById('fNeed').value.trim(),
     teacherName: document.getElementById('fTeacherName').value.trim(),

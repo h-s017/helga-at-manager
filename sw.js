@@ -1,4 +1,4 @@
-const CACHE_NAME = 'at-manager-latest-cat-v1';
+const CACHE_NAME = 'at-manager-login-combined-v2';
 const APP_SHELL = [
   './',
   './index.html',
