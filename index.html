@@ -447,6 +447,10 @@ hr { border: none; border-top: 1px solid #E5DDC8; margin: 12px 0; }
         </select>
       </div>
     </div>
+    <div class="form-group">
+      <label>指定聯絡時間</label>
+      <input type="datetime-local" id="fContactTime">
+    </div>
     <div style="display:flex; gap:8px; margin-top:8px">
       <button class="btn btn-primary" onclick="saveStudent()" style="flex:1; padding:11px">儲存</button>
       <button class="btn btn-second" onclick="closeModal()" style="padding:11px 16px">取消</button>
@@ -669,7 +673,7 @@ async function testSyncUrl() {
 }
 
 function copySetupSummary() {
-  const summary = `AT 學員管理設定\n顧問名稱：${appSettings.consultantName}\n同步網址：${appSettings.syncUrl ? '已設定' : '未設定'}\n同步金鑰：${appSettings.syncToken ? '已設定' : '未設定'}\n預設簽名：${appSettings.defaultSignature || '（不帶簽名）'}\n課後署名：${appSettings.postClassSignature || '（不帶署名）'}\n品牌色：${appSettings.brandColor}\n字體大小：${appSettings.fontSize || 16}px\n課前一天提醒：${appSettings.preDayMin} 分鐘前\n課前自我提醒：${appSettings.preClassMin} 分鐘前\n課後關懷：${appSettings.postCareMin} 分鐘後\n24H Log：課程開始後即進入待辦，24 小時內完成；日曆提醒設於 ${appSettings.logHours} 小時後\n番茄鐘：${appSettings.pomodoroEnabled ? '啟用' : '關閉'}`;
+  const summary = `AT 學員管理設定\n顧問名稱：${appSettings.consultantName}\n同步網址：${appSettings.syncUrl ? '已設定' : '未設定'}\n同步金鑰：${appSettings.syncToken ? '已設定' : '未設定'}\n預設簽名：${appSettings.defaultSignature || '（不帶簽名）'}\n課後署名：${appSettings.postClassSignature || '（不帶署名）'}\n品牌色：${appSettings.brandColor}\n字體大小：${appSettings.fontSize || 16}px\n課前一天提醒：${appSettings.preDayMin} 分鐘前\n課前自我提醒：${appSettings.preClassMin} 分鐘前\n課後關懷：${appSettings.postCareMin} 分鐘後\n優惠券到期提醒：體驗課後 22 小時\n24H Log：課程開始後即進入待辦，24 小時內完成；日曆提醒設於 ${appSettings.logHours} 小時後\n番茄鐘：${appSettings.pomodoroEnabled ? '啟用' : '關閉'}`;
   copyText(summary);
 }
 
@@ -698,6 +702,7 @@ function applyTemplateFields(text, s = {}, label = '') {
     .replace(/\[老師姓名\]/g, s.teacherName || '')
     .replace(/\[上課時間\]/g, s.classTime ? fmt(s.classTime) : '')
     .replace(/\[時間\]/g, s.classTime ? fmt(s.classTime) : '')
+    .replace(/\[優惠到期時間\]/g, s.classTime ? fmtTime(new Date(new Date(s.classTime).getTime() + 24 * 60 * 60 * 1000)) : '')
     .replace(/\[登入方式\]/g, displayLoginType(s.loginType) || '信箱/手機')
     .replace(/\[老師連結\]/g, s.teacherUrl || '');
 
@@ -752,6 +757,10 @@ const DEFAULT_TEMPLATES = [
     text: '哈囉 [姓名]～\n想跟你分享一個訊息：本週有限時優惠方案，如果有打算開始正式上課，現在報名很划算！\n要不要我幫你算一下你想學的課程組合？\nHelga'
   },
   {
+    label: '課後 22 小時優惠券到期提醒',
+    text: '哈囉，提醒一下，我們的優惠券在 [優惠到期時間] 就要到期囉，確定要買課的話建議提早一小時完成購課，有問題都可以再跟我說唷~😊'
+  },
+  {
     label: '一週後關懷',
     text: '哈囉 [姓名]，最近好嗎？\n上週的體驗課之後，有持續學習的想法嗎？\n不論是想換老師、調整方向、或是有任何疑問，都可以跟我說～\nHelga'
   },
@@ -785,6 +794,7 @@ function normalizeStudentRecord(s) {
     teacherName: String(s.teacherName || ''),
     teacherUrl: String(s.teacherUrl || ''),
     classTime: String(s.classTime || ''),
+    contactTime: String(s.contactTime || ''),
     status: String(s.status || 'new'),
     createdAt: String(s.createdAt || ''),
     updatedAt: String(s.updatedAt || '')
@@ -813,7 +823,7 @@ function studentRecordTimestamp(s) {
 }
 
 function studentRecordsEquivalent(a, b) {
-  const fields = ['id','name','uid','phone','loginType','lineId','need','teacherName','teacherUrl','classTime','status','createdAt','updatedAt'];
+  const fields = ['id','name','uid','phone','loginType','lineId','need','teacherName','teacherUrl','classTime','contactTime','status','createdAt','updatedAt'];
   return fields.every(k => String((a && a[k]) || '') === String((b && b[k]) || ''));
 }
 
@@ -1129,11 +1139,13 @@ function buildReminderTasks() {
   const tasks = [];
 
   students.forEach(s => {
-    if (!s.classTime) return;
-    const ct = new Date(s.classTime);
+    const hasClassTime = !!s.classTime;
+    const ct = hasClassTime ? new Date(s.classTime) : null;
 
     const pushTask = (type, action, offsetMin, options = {}) => {
-      const reminderAt = new Date(ct.getTime() + offsetMin * 60000);
+      const baseTime = options.baseTime || ct;
+      if (!baseTime || isNaN(baseTime.getTime())) return;
+      const reminderAt = new Date(baseTime.getTime() + offsetMin * 60000);
       const key = taskKey(s, type, reminderAt);
       tasks.push({
         key,
@@ -1152,14 +1164,25 @@ function buildReminderTasks() {
       });
     };
 
-    if (s.status === 'booked') {
+    if (s.contactTime) {
+      pushTask('指定聯絡提醒', '依指定時間聯絡客戶', 0, { dur: 15, baseTime: new Date(s.contactTime), sortAt: new Date(s.contactTime) });
+    }
+
+    if (hasClassTime && s.status === 'booked') {
       pushTask('課前一天提醒學員', '傳送上課前提醒訊息', -appSettings.preDayMin, { dur: 15 });
       pushTask(`課前 ${appSettings.preClassMin} 分鐘自我提醒`, '注意 LINE 訊息，確認學員可順利進教室', -appSettings.preClassMin, { dur: 5 });
       pushTask(`課後 ${appSettings.postCareMin} 分鐘關懷`, '傳送關懷訊息', appSettings.postCareMin, { dur: 10 });
     }
 
-    if (s.status === 'done') {
+    if (hasClassTime && s.status === 'done') {
       pushTask(`課後 ${appSettings.postCareMin} 分鐘關懷`, '傳送關懷訊息', appSettings.postCareMin, { dur: 10 });
+    }
+
+    if (!hasClassTime) return;
+
+    // 優惠券到期提醒：體驗課後 22 小時提醒客戶，避免 24 小時優惠券到期前太晚處理。
+    if (!['converted', 'lost'].includes(s.status)) {
+      pushTask('課後 22 小時優惠券到期提醒', '提醒客戶優惠券即將到期，建議提早完成購課', 22 * 60, { dur: 15 });
     }
 
     // 24H Log：體驗課時間一到就進入待辦，截止時間為體驗課時間 + 24 小時。
@@ -1210,6 +1233,8 @@ function getPendingTasks() {
     if (t.type.includes('課前一天')) return diffMin <= 360 && afterMin <= 360;
     if (t.type.includes('自我提醒')) return diffMin <= appSettings.preClassMin && afterMin <= 30;
     if (t.type.includes('關懷')) return diffMin <= appSettings.postCareMin && afterMin <= 90;
+    if (t.type.includes('優惠券')) return diffMin <= 60 && afterMin <= 180;
+    if (t.type.includes('指定聯絡')) return diffMin <= 60 && afterMin <= 180;
     return false;
   });
   return decorateTaskTiming(tasks);
@@ -1280,7 +1305,7 @@ function renderTasks() {
         <div class="task-action">${t.action}</div>
         <div class="task-time ${timeCls}">${timeStr}</div>
         <div class="task-buttons">
-          ${t.type.includes('學員') || t.type.includes('關懷') || t.type.includes('自我提醒') ? `<button class="btn btn-line" onclick="copyTemplate('${t.student.id}','${t.type}')">複製訊息</button>` : ''}
+          ${t.type.includes('學員') || t.type.includes('關懷') || t.type.includes('自我提醒') || t.type.includes('優惠券') ? `<button class="btn btn-line" onclick="copyTemplate('${t.student.id}','${t.type}')">複製訊息</button>` : ''}
           ${t.type.includes('Log') ? `<button class="btn btn-primary" onclick="markLogDone('${t.student.id}')">完成並標記已 log</button>` : `<button class="btn btn-primary" onclick="completeTask('${escapeJsString(t.key)}')">完成</button>`}
           <button class="btn btn-edit" onclick="editStudent('${t.student.id}')">編輯</button>
         </div>
@@ -1370,9 +1395,10 @@ function renderList() {
       </div>
       ${s.need ? `<div class="card-need">📝 ${s.need}</div>` : ''}
       ${s.classTime ? `<div class="card-time">⏰ 體驗課：${fmt(s.classTime)}</div>` : ''}
+      ${s.contactTime ? `<div class="card-time">📌 指定聯絡：${fmt(s.contactTime)}</div>` : ''}
       <div class="actions">
         ${s.phone ? `<button class="btn btn-call" onclick="callViaEzuc('${normalizePhoneNumber(s.phone)}')">📞 EZUC+</button>` : ''}
-        ${s.classTime ? `<button class="btn btn-cal" onclick="addToCalendar('${s.id}')">加日曆</button>` : ''}
+        ${(s.classTime || s.contactTime) ? `<button class="btn btn-cal" onclick="addToCalendar('${s.id}')">加日曆</button>` : ''}
         ${s.lineId || s.phone ? `<button class="btn btn-line" onclick="copyForStudent('${s.id}')">複製訊息</button>` : ''}
         ${s.teacherUrl ? `<button class="btn btn-second" onclick="openTeacher('${s.id}')">老師頁</button>` : ''}
         <button class="btn btn-edit" onclick="editStudent('${s.id}')">編輯</button>
@@ -1552,6 +1578,8 @@ function copyTemplate(studentId, type) {
     tpl = TEMPLATES.find(t => t.label.includes('完整提醒')) || TEMPLATES.find(t => t.label.includes('預約確認'));
   } else if (type.includes('課前 30') || type.includes('30 分鐘自我提醒')) {
     tpl = TEMPLATES.find(t => t.label.includes('30 分鐘自我提醒'));
+  } else if (type.includes('優惠券')) {
+    tpl = TEMPLATES.find(t => t.label.includes('優惠券到期')) || TEMPLATES.find(t => t.label.includes('優惠券'));
   } else if (type.includes('30 分鐘關懷') || type.includes('1 小時關懷')) {
     tpl = TEMPLATES.find(t => t.label.includes('30 分鐘關懷') || t.label.includes('關懷'));
   } else {
@@ -1627,19 +1655,24 @@ function callViaEzuc(phone) {
 
 // === Calendar ===
 function buildCalendarEvents(s) {
-  const ct = new Date(s.classTime);
+  const ct = s.classTime ? new Date(s.classTime) : null;
+  const contactAt = s.contactTime ? new Date(s.contactTime) : null;
   const detailExtra = (s.phone ? `\n手機: ${normalizePhoneNumber(s.phone)}` : '')
     + (s.lineId ? `\nLINE: ${s.lineId}` : '')
     + (s.teacherName ? `\n老師: ${s.teacherName}` : '')
     + (s.teacherUrl ? `\n老師連結: ${s.teacherUrl}` : '');
 
-  return [
-    { offsetMin: -appSettings.preDayMin, dur: 15, title: `[課前一天] 提醒 ${s.name} 上課`, desc: '傳送課前提醒訊息（含上課流程、登入方式、優惠資訊）' },
-    { offsetMin: -appSettings.preClassMin, dur: 5, title: `⚠️ [課前${appSettings.preClassMin}分] ${s.name} 即將上課`, desc: '注意 LINE 訊息，確認學員可以順利進教室。' },
-    { offsetMin: appSettings.postCareMin, dur: 10, title: `[課後${appSettings.postCareMin}分關懷] ${s.name}`, desc: '傳送關懷訊息，確認體驗課狀況與老師適配度。' },
-    { offsetMin: appSettings.logHours * 60, dur: 30, title: `[${appSettings.logHours}H Log] ${s.name}`, desc: '完成業務系統紀錄與課後跟進。' },
-  ].map(e => {
-    const start = new Date(ct.getTime() + e.offsetMin * 60000);
+  const events = [];
+  if (ct) events.push(
+    { baseTime: ct, offsetMin: -appSettings.preDayMin, dur: 15, title: `[課前一天] 提醒 ${s.name} 上課`, desc: '傳送課前提醒訊息（含上課流程、登入方式、優惠資訊）' },
+    { baseTime: ct, offsetMin: -appSettings.preClassMin, dur: 5, title: `⚠️ [課前${appSettings.preClassMin}分] ${s.name} 即將上課`, desc: '注意 LINE 訊息，確認學員可以順利進教室。' },
+    { baseTime: ct, offsetMin: appSettings.postCareMin, dur: 10, title: `[課後${appSettings.postCareMin}分關懷] ${s.name}`, desc: '傳送關懷訊息，確認體驗課狀況與老師適配度。' },
+    { baseTime: ct, offsetMin: 22 * 60, dur: 15, title: `[AT優惠券到期提醒] ${s.name}`, desc: '提醒客戶 24 小時優惠券即將到期，建議提早一小時完成購課。' },
+    { baseTime: ct, offsetMin: appSettings.logHours * 60, dur: 30, title: `[${appSettings.logHours}H Log] ${s.name}`, desc: '完成業務系統紀錄與課後跟進。' }
+  );
+  if (contactAt) events.push({ baseTime: contactAt, offsetMin: 0, dur: 15, title: `[AT指定聯絡] ${s.name}`, desc: '依指定時間聯絡客戶。' });
+  return events.map(e => {
+    const start = new Date(e.baseTime.getTime() + e.offsetMin * 60000);
     const end = new Date(start.getTime() + e.dur * 60000);
     return {
       title: e.title,
@@ -1659,8 +1692,8 @@ function toBase64UrlUnicode(str) {
 
 function addToCalendar(id) {
   const s = students.find(x => x.id === id);
-  if (!s || !s.classTime) {
-    showToast('請先設定體驗課時間');
+  if (!s || (!s.classTime && !s.contactTime)) {
+    showToast('請先設定體驗課或指定聯絡時間');
     return;
   }
 
@@ -1675,6 +1708,7 @@ function addToCalendar(id) {
       phone: normalizePhoneNumber(s.phone) || '',
       lineId: s.lineId || '',
       teacherName: s.teacherName || '',
+      contactTime: s.contactTime || '',
       token: getSyncToken()
     });
     const url = `${syncUrl}${sep}${params.toString()}`;
@@ -1773,9 +1807,10 @@ function openModal(id) {
     document.getElementById('fTeacherName').value = s.teacherName || '';
     document.getElementById('fTeacher').value = s.teacherUrl || '';
     document.getElementById('fClassTime').value = s.classTime || '';
+    document.getElementById('fContactTime').value = s.contactTime || '';
     document.getElementById('fStatus').value = s.status || 'new';
   } else {
-    ['fName','fUid','fPhone','fLine','fNeed','fTeacherName','fTeacher','fClassTime'].forEach(i => document.getElementById(i).value = '');
+    ['fName','fUid','fPhone','fLine','fNeed','fTeacherName','fTeacher','fClassTime','fContactTime'].forEach(i => document.getElementById(i).value = '');
     document.getElementById('fLogin').value = '';
     document.getElementById('fStatus').value = 'new';
   }
@@ -1801,6 +1836,7 @@ function saveStudent() {
     teacherName: document.getElementById('fTeacherName').value.trim(),
     teacherUrl: document.getElementById('fTeacher').value.trim(),
     classTime: document.getElementById('fClassTime').value,
+    contactTime: document.getElementById('fContactTime').value,
     status: document.getElementById('fStatus').value
   };
 

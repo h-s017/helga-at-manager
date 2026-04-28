@@ -1,4 +1,4 @@
-const CACHE_NAME = 'at-manager-login-combined-v2';
+const CACHE_NAME = 'at-manager-coupon-reminder-v1';
 const APP_SHELL = [
   './',
   './index.html',
