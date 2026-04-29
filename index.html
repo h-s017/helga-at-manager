@@ -1448,7 +1448,18 @@ function loadTemplates() {
     if (raw) {
       const parsed = JSON.parse(raw);
       const custom = cloneTemplates(parsed);
-      if (custom.length) return custom;
+      if (custom.length) {
+        // 自訂範本存在時，仍自動補上新版缺少的重要預設範本，避免更新後看不到新增範本。
+        const requiredLabels = ['課後 22 小時優惠券到期提醒'];
+        requiredLabels.forEach(label => {
+          if (!custom.some(t => t.label === label)) {
+            const def = DEFAULT_TEMPLATES.find(t => t.label === label);
+            if (def) custom.push({ ...def });
+          }
+        });
+        localStorage.setItem(TEMPLATE_STORAGE_KEY, JSON.stringify(custom));
+        return custom;
+      }
     }
   } catch (e) {}
   return cloneTemplates(DEFAULT_TEMPLATES);
