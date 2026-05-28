@@ -1,0 +1,58 @@
+name: Patch template editor
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[tpl-auto]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch template editor
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+
+          # Add template editor buttons if not present.
+          old = '<div class="actions"><button class="btn btn-primary" onclick="exportTemplates()">匯出範本 JSON</button><button class="btn btn-second" onclick="document.getElementById(\'templateImportFile\').click()">匯入範本 JSON</button><button class="btn btn-del" onclick="resetTemplates()">恢復預設範本</button><input id="templateImportFile" type="file" accept=".json" style="display:none" onchange="importTemplates(event)"></div>'
+          new = '<div class="actions"><button class="btn btn-primary" onclick="openTemplateModal()">＋ 新增範本</button><button class="btn btn-second" onclick="exportTemplates()">匯出範本 JSON</button><button class="btn btn-second" onclick="document.getElementById(\'templateImportFile\').click()">匯入範本 JSON</button><button class="btn btn-del" onclick="resetTemplates()">恢復預設範本</button><input id="templateImportFile" type="file" accept=".json" style="display:none" onchange="importTemplates(event)"></div>'
+          if 'openTemplateModal()' not in s:
+              s = s.replace(old, new)
+
+          # Insert template modal before toast.
+          modal = '<div class="modal" id="templateModal"><div class="modal-box"><span class="close" onclick="closeTemplateModal()">×</span><div class="modal-title" id="templateModalTitle">新增範本</div><div class="form-group"><label>範本名稱 *</label><input id="tplLabel" type="text" placeholder="例如：課後購課方式"></div><div class="form-group"><label>範本內容 *</label><textarea id="tplText" style="min-height:260px" placeholder="可使用 [姓名]、[老師姓名]、[上課時間]、[登入方式]、[老師連結]、[優惠到期時間]、[簽名]"></textarea></div><div class="actions"><button class="btn btn-primary" onclick="saveTemplateFromModal()" style="flex:1">儲存範本</button><button class="btn btn-second" onclick="closeTemplateModal()">取消</button></div></div></div>\n'
+          if 'id="templateModal"' not in s:
+              s = s.replace('<div class="toast" id="toast"></div>', modal + '<div class="toast" id="toast"></div>')
+
+          # Add template editing state.
+          if 'templateEditingIndex' not in s:
+              s = s.replace('let students=[],currentFilter=\'all\',currentView=\'list\',editingId=null;', 'let students=[],currentFilter=\'all\',currentView=\'list\',editingId=null,templateEditingIndex=null;')
+
+          old_func = "function renderTemplates(){$('templateList').innerHTML=templates.map((t,i)=>`<div class=\"template\" onclick=\"copyText(applyTemplate(templates[${i}].text,{}))\"><b>${esc(t.label)}</b>\\n${esc(t.text)}</div>`).join('')}"
+          new_func = "function renderTemplates(){$('templateList').innerHTML=templates.map((t,i)=>`<div class=\"template\"><div onclick=\"copyText(applyTemplate(templates[${i}].text,{}))\"><b>${esc(t.label)}</b>\\n${esc(t.text)}</div><div class=\"actions\"><button class=\"btn btn-second\" onclick=\"event.stopPropagation();openTemplateModal(${i})\">編輯</button><button class=\"btn btn-del\" onclick=\"event.stopPropagation();deleteTemplate(${i})\">刪除</button></div></div>`).join('')}function openTemplateModal(i=null){templateEditingIndex=(i===null||i===undefined)?null:i;const t=templateEditingIndex===null?{label:'',text:''}:templates[templateEditingIndex];$('templateModalTitle').textContent=templateEditingIndex===null?'新增範本':'編輯範本';$('tplLabel').value=t?.label||'';$('tplText').value=t?.text||'';$('templateModal').classList.add('show')}function closeTemplateModal(){$('templateModal').classList.remove('show');templateEditingIndex=null}function saveTemplateFromModal(){const label=$('tplLabel').value.trim();const text=$('tplText').value.trim();if(!label)return alert('請輸入範本名稱');if(!text)return alert('請輸入範本內容');const data={label,text};if(templateEditingIndex===null){templates.push(data)}else{templates[templateEditingIndex]=data}saveTemplates();closeTemplateModal();renderTemplates();showToast('範本已儲存')}function deleteTemplate(i){const t=templates[i];if(!t)return;if(!confirm('確定刪除「'+t.label+'」？'))return;templates.splice(i,1);saveTemplates();renderTemplates();showToast('範本已刪除')}"
+          if old_func in s:
+              s = s.replace(old_func, new_func)
+          elif 'function openTemplateModal' not in s:
+              raise SystemExit('Could not find renderTemplates function to patch')
+
+          p.write_text(s, encoding='utf-8')
+          PY
+      - name: Commit template editor patch
+        run: |
+          if git diff --quiet -- index.html; then
+            echo "No changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Restore editable templates [tpl-auto]"
+          git push
