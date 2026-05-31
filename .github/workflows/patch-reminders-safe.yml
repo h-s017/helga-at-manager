@@ -1,0 +1,78 @@
+name: Patch reminders safe
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[reminders-direct]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch index safely
+        run: |
+          set +e
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          before = s
+
+          s = s.replace(
+            '<div class="tabs"><div class="tab active" data-view="list">名單</div><div class="tab" data-view="templates">範本</div><div class="tab" data-view="pomodoro">專注</div><div class="tab" data-view="settings">設定</div></div>',
+            '<div class="tabs"><div class="tab active" data-view="tasks">提醒</div><div class="tab" data-view="list">名單</div><div class="tab" data-view="templates">範本</div><div class="tab" data-view="pomodoro">專注</div><div class="tab" data-view="settings">設定</div></div>'
+          )
+
+          if 'id="tasksView"' not in s:
+            tasks = '''<section id="tasksView"><div class="card"><div class="section-title" style="margin-top:0">提醒待辦</div><div class="hint">依體驗課時間與指定聯絡時間自動產生。已過期或接近時間的事項會排在前面。</div><div class="actions"><button class="btn btn-second" onclick="setTaskMode('today')">今天</button><button class="btn btn-second" onclick="setTaskMode('tomorrow')">明天</button><button class="btn btn-second" onclick="setTaskMode('all')">全部</button><button class="btn btn-del" onclick="clearCompletedTasks()">清除已完成紀錄</button></div></div><div id="tasksList"></div></section>
+'''
+            s = s.replace('<section id="listView">', tasks + '<section id="listView" style="display:none">')
+
+          s = s.replace(
+            "const STORAGE_KEY='at_students_v1',SETTINGS_KEY='at_manager_settings_v1',TEMPLATE_KEY='at_templates_v1',NEEDS_PUSH_KEY='at_manager_needs_push_v2',DIRTY_IDS_KEY='at_manager_dirty_student_ids_v1',DELETED_IDS_KEY='at_manager_deleted_student_ids_v1';",
+            "const STORAGE_KEY='at_students_v1',SETTINGS_KEY='at_manager_settings_v1',TEMPLATE_KEY='at_templates_v1',NEEDS_PUSH_KEY='at_manager_needs_push_v2',DIRTY_IDS_KEY='at_manager_dirty_student_ids_v1',DELETED_IDS_KEY='at_manager_deleted_student_ids_v1',COMPLETED_TASKS_KEY='at_manager_completed_tasks_v2';"
+          )
+          s = s.replace(
+            "let students=[],currentFilter='all',currentView='list',editingId=null,templateEditingIndex=null;",
+            "let students=[],currentFilter='all',currentView='tasks',editingId=null,templateEditingIndex=null,taskMode='today',completedTasks=loadCompletedTasks();"
+          )
+
+          task_funcs = r'''function loadCompletedTasks(){try{return new Set(JSON.parse(localStorage.getItem(COMPLETED_TASKS_KEY)||'[]'))}catch(e){return new Set()}}
+function saveCompletedTasks(){localStorage.setItem(COMPLETED_TASKS_KEY,JSON.stringify([...completedTasks]))}
+function taskKey(t){return [t.student.id,t.type,t.time].join('|')}
+function setTaskMode(mode){taskMode=mode;renderTasks()}
+function completeTask(key){completedTasks.add(key);saveCompletedTasks();renderTasks();showToast('已完成提醒')}
+function clearCompletedTasks(){if(!confirm('確定清除已完成提醒紀錄？'))return;completedTasks.clear();saveCompletedTasks();renderTasks();showToast('已清除')}
+function sameDay(a,b){const x=new Date(a),y=new Date(b);return x.getFullYear()===y.getFullYear()&&x.getMonth()===y.getMonth()&&x.getDate()===y.getDate()}
+function buildTasks(){const out=[];const now=new Date();students.forEach(s=>{const push=(type,action,time,urgent=false)=>{if(!time)return;const d=new Date(time);if(isNaN(d))return;out.push({student:s,type,action,time:d.toISOString(),sort:d.getTime(),urgent:urgent||d.getTime()<now.getTime()})};if(s.contactTime)push('指定聯絡','依指定時間聯絡客戶',s.contactTime,true);if(s.classTime){const ct=new Date(s.classTime);if(!isNaN(ct)){push('課前一天提醒','傳送課前提醒訊息',new Date(ct.getTime()-24*60*60*1000));push('課前 30 分鐘','確認學員是否可順利進教室',new Date(ct.getTime()-30*60*1000));push('課後 30 分鐘關懷','關心體驗課狀況',new Date(ct.getTime()+30*60*1000));push('優惠券到期提醒','提醒優惠券即將到期',new Date(ct.getTime()+22*60*60*1000));push('24H Log','完成課後 24 小時內紀錄',new Date(ct.getTime()+23*60*60*1000))}}});return out.sort((a,b)=>a.sort-b.sort)}
+function renderTasks(){const el=$('tasksList');if(!el)return;const today=new Date();const tomorrow=new Date(Date.now()+24*60*60*1000);let tasks=buildTasks().filter(t=>!completedTasks.has(taskKey(t)));if(taskMode==='today')tasks=tasks.filter(t=>sameDay(t.time,today));if(taskMode==='tomorrow')tasks=tasks.filter(t=>sameDay(t.time,tomorrow));if(!tasks.length){el.innerHTML='<div class="empty">目前沒有提醒待辦</div>';return}el.innerHTML=tasks.map(t=>`<div class="card" style="border-left:4px solid ${t.urgent?'#D85A30':'var(--brand)'}"><div class="card-head"><div><div class="name">${esc(t.student.name)}｜${esc(t.type)}</div><div class="small">${fmt(t.time)} ${t.urgent?'｜已到期或需優先處理':''}</div></div><div class="status s-${t.student.status}">${statusName(t.student.status)}</div></div><div class="note">${esc(t.action)}</div><div class="actions"><button class="btn btn-line" onclick="copyForStudent('${t.student.id}')">複製訊息</button><button class="btn btn-cal" onclick="addToCalendar('${t.student.id}')">加日曆</button><button class="btn btn-second" onclick="openModal('${t.student.id}')">看學員</button><button class="btn btn-del" onclick="completeTask('${taskKey(t)}')">完成</button></div></div>`).join('')}
+'''
+          marker = "function render(){renderStats();renderFilters();if(currentView==='list')renderList();if(currentView==='templates')renderTemplates();pomoRender()}"
+          if 'function buildTasks()' not in s and marker in s:
+            s = s.replace(marker, task_funcs + "function render(){renderStats();renderFilters();if(currentView==='tasks')renderTasks();if(currentView==='list')renderList();if(currentView==='templates')renderTemplates();pomoRender()}")
+
+          old_switch = "document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{currentView=t.dataset.view;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===t));$('listView').style.display=currentView==='list'?'block':'none';$('templatesView').style.display=currentView==='templates'?'block':'none';$('pomodoroView').style.display=currentView==='pomodoro'?'block':'none';$('settingsView').style.display=currentView==='settings'?'block':'none';document.querySelector('.fab').style.display=currentView==='list'?'block':'none';render();if(currentView==='settings')populateSettings()});"
+          new_switch = "document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{currentView=t.dataset.view;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===t));$('tasksView').style.display=currentView==='tasks'?'block':'none';$('listView').style.display=currentView==='list'?'block':'none';$('templatesView').style.display=currentView==='templates'?'block':'none';$('pomodoroView').style.display=currentView==='pomodoro'?'block':'none';$('settingsView').style.display=currentView==='settings'?'block':'none';document.querySelector('.fab').style.display=currentView==='list'?'block':'none';render();if(currentView==='settings')populateSettings()});"
+          s = s.replace(old_switch, new_switch)
+
+          p.write_text(s, encoding='utf-8')
+          print('changed=', before != s)
+          PY
+      - name: Commit if changed
+        run: |
+          set +e
+          if git diff --quiet -- index.html; then
+            echo "No index change"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Restore reminders page [reminders-direct]"
+          git push
+          exit 0
